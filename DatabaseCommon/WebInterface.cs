@@ -1,11 +1,10 @@
-﻿using Logging;
-using System;
+﻿using System;
 using System.Collections.Specialized;
 using System.Net;
 using System.Text;
 using System.Threading;
 
-namespace WebServer
+namespace Database.Common
 {
     public static class WebInterface
     {

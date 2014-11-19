@@ -1,11 +1,10 @@
-﻿using Logging;
+﻿using Database.Common;
 using Mono.Options;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using WebServer;
 
-namespace DatabaseMaster
+namespace Database.Master
 {
     public class Program
     {

@@ -1,4 +1,4 @@
-﻿namespace DatabaseMaster
+﻿namespace Database.Master
 {
     public static class MasterNode
     {
