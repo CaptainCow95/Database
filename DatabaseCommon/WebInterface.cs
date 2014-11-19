@@ -8,8 +8,8 @@ namespace Database.Common
 {
     public static class WebInterface
     {
+        private static readonly object LockObject = new object();
         private static Thread _interfaceThread;
-        private static object _lockObject = new object();
         private static int _port;
         private static RequestReceivedDelegate _requestReceived;
         private static bool _running;
@@ -40,9 +40,9 @@ namespace Database.Common
 
         private static void ProcessRequest(IAsyncResult result)
         {
-            HttpListener listener = (HttpListener)result.AsyncState;
+            var listener = (HttpListener)result.AsyncState;
             HttpListenerContext context;
-            lock (_lockObject)
+            lock (LockObject)
             {
                 if (listener.IsListening)
                 {
@@ -72,7 +72,7 @@ namespace Database.Common
 
             NameValueCollection queryString = context.Request.QueryString;
 
-            lock (_lockObject)
+            lock (LockObject)
             {
                 if (listener.IsListening)
                 {
@@ -111,7 +111,7 @@ namespace Database.Common
                 Thread.Sleep(100);
             }
 
-            lock (_lockObject)
+            lock (LockObject)
             {
                 listener.Stop();
             }

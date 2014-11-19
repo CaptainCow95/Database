@@ -11,7 +11,7 @@ namespace Database.Master
         private static void Main(string[] args)
         {
             int port = 12345;
-            OptionSet optionSet = new OptionSet()
+            var optionSet = new OptionSet
             {
                 {"p|port=", "The port the program should run on.", (int e) => port = e}
             };
@@ -47,13 +47,14 @@ namespace Database.Master
             }
 
             Logger.Init(string.Empty, "master");
-            MasterNode.Start(port);
+            var node = new MasterNode(port);
+            node.Start();
             WebInterface.Start(port + 1, WebInterfaceRequestReceived);
 
             // Rest of code goes here.
 
             WebInterface.Stop();
-            MasterNode.Stop();
+            node.Stop();
         }
 
         private static string WebInterfaceRequestReceived(string page, NameValueCollection queryString)
@@ -61,10 +62,10 @@ namespace Database.Master
             switch (page)
             {
                 case "":
-                    return "<html><body>Main Page\n" + queryString.ToString() + "</body></html>";
+                    return "<html><body>Main Page\n" + queryString + "</body></html>";
 
                 case "status":
-                    return "<html><body>Status Page\n" + queryString.ToString() + "</body></html>";
+                    return "<html><body>Status Page\n" + queryString + "</body></html>";
 
                 default:
                     return "<html><body>Unknown Page</body></html>";

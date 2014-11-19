@@ -5,7 +5,7 @@ namespace Database.Common
 {
     public static class Logger
     {
-        private static object _lockObject = new object();
+        private static readonly object LockObject = new object();
         private static string _logLocation;
         private static string _logPrefix;
 
@@ -17,7 +17,7 @@ namespace Database.Common
 
         public static void Log(string message)
         {
-            lock (_lockObject)
+            lock (LockObject)
             {
                 DateTime now = DateTime.UtcNow;
                 string data = "[" + now.ToShortDateString() + " " + now.ToShortTimeString() + "] " + message;

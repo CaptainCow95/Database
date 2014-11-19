@@ -1,16 +1,22 @@
-﻿namespace Database.Master
-{
-    public static class MasterNode
-    {
-        private static int _port;
+﻿using Database.Common;
 
-        public static void Start(int port)
+namespace Database.Master
+{
+    public class MasterNode : Node
+    {
+        public MasterNode(int port)
+            : base(port)
         {
-            _port = port;
         }
 
-        public static void Stop()
+        public void Start()
         {
+            BeforeStart();
+        }
+
+        public void Stop()
+        {
+            AfterStop();
         }
     }
 }
