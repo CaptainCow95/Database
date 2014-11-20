@@ -51,6 +51,8 @@ namespace Database.Master
             node.Start();
             WebInterface.Start(port + 1, WebInterfaceRequestReceived);
 
+            while (true) ;
+
             // Rest of code goes here.
 
             WebInterface.Stop();
