@@ -17,7 +17,6 @@ namespace Database.Common
         private readonly int _port;
         private Thread _connectionCleanerThread;
         private TcpListener _connectionListener;
-        private Thread _connectionListenerThread;
         private Thread _messageListenerThread;
         private Thread _messageSenderThread;
         private bool _running = false;
@@ -50,9 +49,6 @@ namespace Database.Common
             _connectionListener = new TcpListener(IPAddress.Any, _port);
             _connectionListener.Start();
             _connectionListener.BeginAcceptTcpClient(ProcessConnectionRequest, null);
-
-            //_connectionListenerThread = new Thread(RunConnectionListener);
-            //_connectionListenerThread.Start();
 
             _connectionCleanerThread = new Thread(RunConnectionCleaner);
             _connectionCleanerThread.Start();
@@ -126,29 +122,6 @@ namespace Database.Common
                     {
                         break;
                     }
-                }
-            }
-        }
-
-        private void RunConnectionListener()
-        {
-            _connectionListener = new TcpListener(IPAddress.Any, _port);
-            _connectionListener.Start();
-            while (_running)
-            {
-                try
-                {
-                    var incoming = _connectionListener.AcceptTcpClient();
-
-                    lock (_connections)
-                    {
-                        _connections.Add(incoming.Client.RemoteEndPoint.ToString(),
-                            new Connection(incoming, DateTime.Now));
-                    }
-                }
-                catch (Exception)
-                {
-                    // Connection Listener was probably stopped and failed out.
                 }
             }
         }
