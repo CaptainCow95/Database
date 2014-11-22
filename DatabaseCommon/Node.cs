@@ -13,9 +13,8 @@ namespace Database.Common
         private const int ConnectionTimeout = 30;
         private readonly Dictionary<string, Connection> _connections = new Dictionary<string, Connection>();
         private readonly Dictionary<string, List<byte>> _messagesReceived = new Dictionary<string, List<byte>>();
-        private readonly Queue<byte[]> _messagesToSend = new Queue<byte[]>();
+        private readonly Queue<Message> _messagesToSend = new Queue<Message>();
         private readonly int _port;
-        private Thread _connectionCleanerThread;
         private TcpListener _connectionListener;
         private Thread _messageListenerThread;
         private Thread _messageSenderThread;
@@ -49,9 +48,6 @@ namespace Database.Common
             _connectionListener = new TcpListener(IPAddress.Any, _port);
             _connectionListener.Start();
             _connectionListener.BeginAcceptTcpClient(ProcessConnectionRequest, null);
-
-            _connectionCleanerThread = new Thread(RunConnectionCleaner);
-            _connectionCleanerThread.Start();
         }
 
         private void ProcessConnectionRequest(IAsyncResult result)
@@ -79,59 +75,15 @@ namespace Database.Common
             Console.WriteLine(Encoding.Default.GetString(message));
         }
 
-        private void RunConnectionCleaner()
-        {
-            for (int i = 0; i < ConnectionTimeout; ++i)
-            {
-                Thread.Sleep(1000);
-
-                if (!_running)
-                {
-                    break;
-                }
-            }
-
-            while (_running)
-            {
-                // MAKE SURE THIS LOCK ORDER IS THE SAME EVERYWHERE
-                lock (_connections) lock (_messagesReceived)
-                    {
-                        DateTime now = DateTime.UtcNow;
-                        var toRemove = new List<string>();
-                        foreach (var item in _connections)
-                        {
-                            if (!item.Value.Client.Connected || (now - item.Value.LastActiveTime).TotalSeconds > ConnectionTimeout)
-                            {
-                                toRemove.Add(item.Key);
-                            }
-                        }
-
-                        foreach (var item in toRemove)
-                        {
-                            _connections[item].Client.Close();
-                            _connections.Remove(item);
-                            _messagesReceived.Remove(item);
-                        }
-                    }
-
-                for (int i = 0; i < 5; ++i)
-                {
-                    Thread.Sleep(1000);
-
-                    if (!_running)
-                    {
-                        break;
-                    }
-                }
-            }
-        }
-
         private void RunMessageListener()
         {
             const int messageBufferSize = 1024;
             var messageBuffer = new byte[messageBufferSize];
+            List<string> connectionsToRemove = new List<string>();
             while (_running)
             {
+                DateTime now = DateTime.UtcNow;
+
                 // MAKE SURE THIS LOCK ORDER IS THE SAME EVERYWHERE
                 lock (_connections) lock (_messagesReceived)
                     {
@@ -148,13 +100,25 @@ namespace Database.Common
                             }
 
                             NetworkStream stream = connection.Value.Client.GetStream();
-                            if (stream.DataAvailable)
+                            while (stream.DataAvailable)
                             {
                                 int bytesRead = stream.Read(messageBuffer, 0, messageBufferSize);
                                 _messagesReceived[connection.Key].AddRange(messageBuffer.Take(bytesRead));
                                 connection.Value.LastActiveTime = DateTime.Now;
                             }
+
+                            if (!connection.Value.Client.Connected || (now - connection.Value.LastActiveTime).TotalSeconds > ConnectionTimeout)
+                            {
+                                connectionsToRemove.Add(connection.Key);
+                            }
                         }
+
+                        foreach (var connection in connectionsToRemove)
+                        {
+                            _connections.Remove(connection);
+                        }
+
+                        connectionsToRemove.Clear();
                     }
 
                 List<byte[]> messages = new List<byte[]>();
@@ -191,25 +155,19 @@ namespace Database.Common
                     while (_messagesToSend.Count > 0)
                     {
                         var message = _messagesToSend.Dequeue();
-                        ThreadPool.QueueUserWorkItem(SendMessageInternal, message);
+
+                        lock (_connections)
+                        {
+                            if (_connections.ContainsKey(message.Address))
+                            {
+                                var stream = _connections[message.Address].Client.GetStream();
+                                stream.Write(message.Data, 0, message.Data.Length);
+                            }
+                        }
                     }
                 }
 
                 Thread.Sleep(1);
-            }
-        }
-
-        private void SendMessageInternal(object data)
-        {
-            var message = (Message)data;
-
-            lock (_connections)
-            {
-                if (_connections.ContainsKey(message.Address))
-                {
-                    var stream = _connections[message.Address].Client.GetStream();
-                    stream.Write(message.Data, 0, message.Data.Length);
-                }
             }
         }
 
