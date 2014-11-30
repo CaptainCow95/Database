@@ -15,6 +15,7 @@ namespace Database.Common
         private readonly Dictionary<string, List<byte>> _messagesReceived = new Dictionary<string, List<byte>>();
         private readonly Queue<Message> _messagesToSend = new Queue<Message>();
         private readonly int _port;
+        private readonly Dictionary<uint, Message> _waitingForResponses = new Dictionary<uint, Message>();
         private TcpListener _connectionListener;
         private Thread _messageListenerThread;
         private Thread _messageSenderThread;
@@ -50,6 +51,15 @@ namespace Database.Common
             _connectionListener.BeginAcceptTcpClient(ProcessConnectionRequest, null);
         }
 
+        protected void SendMessage(Message message)
+        {
+            message.Status = MessageStatus.Sending;
+            lock (_messagesToSend)
+            {
+                _messagesToSend.Enqueue(message);
+            }
+        }
+
         private void ProcessConnectionRequest(IAsyncResult result)
         {
             TcpClient incoming;
@@ -64,15 +74,21 @@ namespace Database.Common
                 return;
             }
 
+            Connection connection = new Connection(incoming, DateTime.Now, ConnectionStatus.ConfirmingConnection);
             lock (_connections)
             {
-                _connections.Add(incoming.Client.RemoteEndPoint.ToString(), new Connection(incoming, DateTime.Now));
+                _connections.Add(incoming.Client.RemoteEndPoint.ToString(), connection);
             }
+
+            // TODO: Confirm Connection
+
+            connection.Status = ConnectionStatus.Connected;
         }
 
-        private void ProcessMessage(byte[] message)
+        private void ProcessMessage(string address, byte[] data)
         {
-            Console.WriteLine(Encoding.Default.GetString(message));
+            Message message = new Message(address, data);
+            Console.WriteLine(Encoding.Default.GetString(data));
         }
 
         private void RunMessageListener()
@@ -121,7 +137,7 @@ namespace Database.Common
                         connectionsToRemove.Clear();
                     }
 
-                List<byte[]> messages = new List<byte[]>();
+                List<Tuple<string, byte[]>> messages = new List<Tuple<string, byte[]>>();
                 lock (_messagesReceived)
                 {
                     foreach (var message in _messagesReceived)
@@ -131,7 +147,7 @@ namespace Database.Common
                             int length = BitConverter.ToInt32(message.Value.Take(4).ToArray(), 0);
                             if (message.Value.Count > length + 4)
                             {
-                                messages.Add(message.Value.Skip(4).Take(length).ToArray());
+                                messages.Add(new Tuple<string, byte[]>(message.Key, message.Value.Skip(4).Take(length).ToArray()));
                             }
                         }
                     }
@@ -139,7 +155,7 @@ namespace Database.Common
 
                 foreach (var message in messages)
                 {
-                    ProcessMessage(message);
+                    ProcessMessage(message.Item1, message.Item2);
                 }
 
                 Thread.Sleep(1);
@@ -160,8 +176,35 @@ namespace Database.Common
                         {
                             if (_connections.ContainsKey(message.Address))
                             {
-                                var stream = _connections[message.Address].Client.GetStream();
-                                stream.Write(message.Data, 0, message.Data.Length);
+                                try
+                                {
+                                    if (message.WaitingForResponse)
+                                    {
+                                        _waitingForResponses.Add(message.ID, message);
+                                    }
+
+                                    byte[] dataToSend = message.EncodeMessage();
+                                    var stream = _connections[message.Address].Client.GetStream();
+                                    stream.Write(dataToSend, 0, dataToSend.Length);
+
+                                    if (message.WaitingForResponse)
+                                    {
+                                        message.Status = MessageStatus.WaitingForResponse;
+                                    }
+                                    else
+                                    {
+                                        message.Status = MessageStatus.Sent;
+                                    }
+                                }
+                                catch (ObjectDisposedException)
+                                {
+                                    message.Status = MessageStatus.SendingFailure;
+                                    _waitingForResponses.Remove(message.ID);
+                                }
+                            }
+                            else
+                            {
+                                message.Status = MessageStatus.SendingFailure;
                             }
                         }
                     }
@@ -169,19 +212,6 @@ namespace Database.Common
 
                 Thread.Sleep(1);
             }
-        }
-
-        private class Connection
-        {
-            public Connection(TcpClient client, DateTime lastActiveTime)
-            {
-                Client = client;
-                LastActiveTime = lastActiveTime;
-            }
-
-            public TcpClient Client { get; private set; }
-
-            public DateTime LastActiveTime { get; set; }
         }
     }
 }
