@@ -11,11 +11,13 @@ namespace Database.Common
     public abstract class Node
     {
         private const int ConnectionTimeout = 30;
+        private const int ResponseTimeout = 30;
         private readonly Dictionary<string, Connection> _connections = new Dictionary<string, Connection>();
         private readonly Dictionary<string, List<byte>> _messagesReceived = new Dictionary<string, List<byte>>();
         private readonly Queue<Message> _messagesToSend = new Queue<Message>();
         private readonly int _port;
-        private readonly Dictionary<uint, Message> _waitingForResponses = new Dictionary<uint, Message>();
+        private readonly Dictionary<uint, Tuple<Message, DateTime>> _waitingForResponses = new Dictionary<uint, Tuple<Message, DateTime>>();
+        private Thread _cleanerThread;
         private TcpListener _connectionListener;
         private Thread _messageListenerThread;
         private Thread _messageSenderThread;
@@ -25,6 +27,8 @@ namespace Database.Common
         {
             _port = port;
         }
+
+        public bool Running { get { return _running; } }
 
         protected void AfterStop()
         {
@@ -49,6 +53,9 @@ namespace Database.Common
             _connectionListener = new TcpListener(IPAddress.Any, _port);
             _connectionListener.Start();
             _connectionListener.BeginAcceptTcpClient(ProcessConnectionRequest, null);
+
+            _cleanerThread = new Thread(RunCleaner);
+            _cleanerThread.Start();
         }
 
         protected void SendMessage(Message message)
@@ -88,18 +95,79 @@ namespace Database.Common
         private void ProcessMessage(string address, byte[] data)
         {
             Message message = new Message(address, data);
+            if (message.InResponseTo != 0)
+            {
+                lock (_waitingForResponses)
+                {
+                    if (_waitingForResponses.ContainsKey(message.InResponseTo))
+                    {
+                        Message waiting = _waitingForResponses[message.InResponseTo].Item1;
+                        waiting.Response = message;
+                        waiting.Status = MessageStatus.ResponseReceived;
+                        _waitingForResponses.Remove(message.InResponseTo);
+                    }
+                }
+            }
             Console.WriteLine(Encoding.Default.GetString(data));
+        }
+
+        private void RunCleaner()
+        {
+            while (_running)
+            {
+                DateTime now = DateTime.UtcNow;
+                List<uint> responsesToRemove = new List<uint>();
+                lock (_waitingForResponses)
+                {
+                    foreach (var item in _waitingForResponses)
+                    {
+                        if ((now - item.Value.Item2).TotalSeconds > ResponseTimeout)
+                        {
+                            item.Value.Item1.Status = MessageStatus.ResponseTimeout;
+                            responsesToRemove.Add(item.Key);
+                        }
+                    }
+
+                    foreach (var item in responsesToRemove)
+                    {
+                        _waitingForResponses.Remove(item);
+                    }
+                }
+
+                List<string> connectionsToRemove = new List<string>();
+                lock (_connections)
+                {
+                    foreach (var connection in _connections)
+                    {
+                        if (!connection.Value.Client.Connected ||
+                            (now - connection.Value.LastActiveTime).TotalSeconds > ConnectionTimeout)
+                        {
+                            connectionsToRemove.Add(connection.Key);
+                        }
+                    }
+
+                    foreach (var connection in connectionsToRemove)
+                    {
+                        _connections.Remove(connection);
+                    }
+                }
+
+                // Keep thread responsive to shutdown while waiting for next run (5 seconds).
+                int i = 0;
+                while (_running && i < 5 * 4)
+                {
+                    Thread.Sleep(250);
+                    ++i;
+                }
+            }
         }
 
         private void RunMessageListener()
         {
             const int messageBufferSize = 1024;
             var messageBuffer = new byte[messageBufferSize];
-            List<string> connectionsToRemove = new List<string>();
             while (_running)
             {
-                DateTime now = DateTime.UtcNow;
-
                 // MAKE SURE THIS LOCK ORDER IS THE SAME EVERYWHERE
                 lock (_connections) lock (_messagesReceived)
                     {
@@ -122,19 +190,7 @@ namespace Database.Common
                                 _messagesReceived[connection.Key].AddRange(messageBuffer.Take(bytesRead));
                                 connection.Value.LastActiveTime = DateTime.Now;
                             }
-
-                            if (!connection.Value.Client.Connected || (now - connection.Value.LastActiveTime).TotalSeconds > ConnectionTimeout)
-                            {
-                                connectionsToRemove.Add(connection.Key);
-                            }
                         }
-
-                        foreach (var connection in connectionsToRemove)
-                        {
-                            _connections.Remove(connection);
-                        }
-
-                        connectionsToRemove.Clear();
                     }
 
                 List<Tuple<string, byte[]>> messages = new List<Tuple<string, byte[]>>();
@@ -174,32 +230,32 @@ namespace Database.Common
 
                         lock (_connections)
                         {
-                            if (_connections.ContainsKey(message.Address))
+                            if (_connections.ContainsKey(message.Address) && (_connections[message.Address].Status == ConnectionStatus.Connected || message.SendWithoutConfirmation))
                             {
                                 try
                                 {
                                     if (message.WaitingForResponse)
                                     {
-                                        _waitingForResponses.Add(message.ID, message);
+                                        lock (_waitingForResponses)
+                                        {
+                                            _waitingForResponses.Add(message.ID, new Tuple<Message, DateTime>(message, DateTime.UtcNow));
+                                        }
                                     }
 
                                     byte[] dataToSend = message.EncodeMessage();
                                     var stream = _connections[message.Address].Client.GetStream();
                                     stream.Write(dataToSend, 0, dataToSend.Length);
 
-                                    if (message.WaitingForResponse)
-                                    {
-                                        message.Status = MessageStatus.WaitingForResponse;
-                                    }
-                                    else
-                                    {
-                                        message.Status = MessageStatus.Sent;
-                                    }
+                                    message.Status = message.WaitingForResponse ? MessageStatus.WaitingForResponse : MessageStatus.Sent;
                                 }
                                 catch (ObjectDisposedException)
                                 {
                                     message.Status = MessageStatus.SendingFailure;
-                                    _waitingForResponses.Remove(message.ID);
+
+                                    lock (_waitingForResponses)
+                                    {
+                                        _waitingForResponses.Remove(message.ID);
+                                    }
                                 }
                             }
                             else

@@ -3,6 +3,7 @@ using Mono.Options;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Threading;
 
 namespace Database.Master
 {
@@ -51,7 +52,10 @@ namespace Database.Master
             node.Start();
             WebInterface.Start(port + 1, WebInterfaceRequestReceived);
 
-            while (true) ;
+            while (node.Running)
+            {
+                Thread.Sleep(10);
+            }
 
             // Rest of code goes here.
 

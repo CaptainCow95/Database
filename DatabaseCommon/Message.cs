@@ -11,6 +11,8 @@ namespace Database.Common
         private byte[] _data;
         private uint _id;
         private uint _inResponseTo;
+        private Message _response;
+        private bool _sendWithoutConfirmation = false;
         private MessageStatus _status;
         private bool _waitingForResponse;
 
@@ -37,18 +39,56 @@ namespace Database.Common
         {
             _address = address;
             DecodeMessage(data);
-            _status = MessageStatus.Created;
+            _status = MessageStatus.Received;
         }
 
-        public string Address { get { return _address; } }
+        public string Address
+        {
+            get { return _address; }
+        }
 
-        public byte[] Data { get { return _data; } }
+        public byte[] Data
+        {
+            get { return _data; }
+        }
 
-        public uint ID { get { return _id; } }
+        public Message Response
+        {
+            get { return _response; }
+            internal set { _response = value; }
+        }
 
-        public MessageStatus Status { get { return _status; } internal set { _status = value; } }
+        public MessageStatus Status
+        {
+            get { return _status; }
+            internal set { _status = value; }
+        }
 
-        public bool WaitingForResponse { get { return _waitingForResponse; } }
+        public bool Success
+        {
+            get { return _status != MessageStatus.Sending && _status != MessageStatus.WaitingForResponse; }
+        }
+
+        public bool WaitingForResponse
+        {
+            get { return _waitingForResponse; }
+        }
+
+        internal uint ID
+        {
+            get { return _id; }
+        }
+
+        internal uint InResponseTo
+        {
+            get { return _inResponseTo; }
+        }
+
+        internal bool SendWithoutConfirmation
+        {
+            get { return _sendWithoutConfirmation; }
+            set { _sendWithoutConfirmation = value; }
+        }
 
         internal byte[] EncodeMessage()
         {
