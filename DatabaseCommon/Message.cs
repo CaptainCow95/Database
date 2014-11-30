@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 
 namespace Database.Common
 {
@@ -66,7 +67,7 @@ namespace Database.Common
 
         public bool Success
         {
-            get { return _status != MessageStatus.Sending && _status != MessageStatus.WaitingForResponse; }
+            get { return _status == MessageStatus.Sent || _status == MessageStatus.ResponseReceived; }
         }
 
         public bool WaitingForResponse
@@ -88,6 +89,14 @@ namespace Database.Common
         {
             get { return _sendWithoutConfirmation; }
             set { _sendWithoutConfirmation = value; }
+        }
+
+        public void BlockUntilDone()
+        {
+            while (_status != MessageStatus.Sending && _status != MessageStatus.WaitingForResponse)
+            {
+                Thread.Sleep(1);
+            }
         }
 
         internal byte[] EncodeMessage()
