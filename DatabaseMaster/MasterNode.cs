@@ -1,4 +1,5 @@
 ﻿using Database.Common;
+using System.Threading;
 
 namespace Database.Master
 {
@@ -7,6 +8,18 @@ namespace Database.Master
         public MasterNode(int port)
             : base(port)
         {
+        }
+
+        public override void Run()
+        {
+            BeforeStart();
+
+            while (Running)
+            {
+                Thread.Sleep(1);
+            }
+
+            AfterStop();
         }
 
         public void Start()

@@ -3,7 +3,6 @@ using Mono.Options;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Threading;
 
 namespace Database.Master
 {
@@ -48,19 +47,12 @@ namespace Database.Master
             }
 
             Logger.Init(string.Empty, "master");
-            var node = new MasterNode(port);
-            node.Start();
             WebInterface.Start(port + 1, WebInterfaceRequestReceived);
 
-            while (node.Running)
-            {
-                Thread.Sleep(10);
-            }
-
-            // Rest of code goes here.
+            var node = new MasterNode(port);
+            node.Run();
 
             WebInterface.Stop();
-            node.Stop();
         }
 
         private static string WebInterfaceRequestReceived(string page, NameValueCollection queryString)

@@ -6,16 +6,49 @@ using System.Threading;
 
 namespace Database.Common
 {
+    /// <summary>
+    /// The web interface to the node.
+    /// </summary>
     public static class WebInterface
     {
+        /// <summary>
+        /// The lock object for the http listener.
+        /// </summary>
         private static readonly object LockObject = new object();
+
+        /// <summary>
+        /// The thread the web interface runs on.
+        /// </summary>
         private static Thread _interfaceThread;
+
+        /// <summary>
+        /// The port the web interface runs on.
+        /// </summary>
         private static int _port;
+
+        /// <summary>
+        /// The function to call when a web request is received.
+        /// </summary>
         private static RequestReceivedDelegate _requestReceived;
+
+        /// <summary>
+        /// A value indicating whether the web interface is running.
+        /// </summary>
         private static bool _running;
 
+        /// <summary>
+        /// The delegate used when a web request is received.
+        /// </summary>
+        /// <param name="page">The page that was requested.</param>
+        /// <param name="queryString">The parameters on the query string.</param>
+        /// <returns>The html of the page to be returned.</returns>
         public delegate string RequestReceivedDelegate(string page, NameValueCollection queryString);
 
+        /// <summary>
+        /// Starts the web interface.
+        /// </summary>
+        /// <param name="port">The port the web interface is going to run on.</param>
+        /// <param name="requestReceived">The function to call when a request is received.</param>
         public static void Start(int port, RequestReceivedDelegate requestReceived)
         {
             _port = port;
@@ -25,6 +58,9 @@ namespace Database.Common
             _interfaceThread.Start();
         }
 
+        /// <summary>
+        /// Stops the web interface.
+        /// </summary>
         public static void Stop()
         {
             _running = false;
@@ -38,6 +74,10 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// Called when a request has been received and needs to be processed.
+        /// </summary>
+        /// <param name="result">The result of the listener call, in this case, the request to be processed.</param>
         private static void ProcessRequest(IAsyncResult result)
         {
             var listener = (HttpListener)result.AsyncState;
@@ -88,6 +128,9 @@ namespace Database.Common
             context.Response.OutputStream.Close();
         }
 
+        /// <summary>
+        /// The run method for the web interface thread.
+        /// </summary>
         private static void RunWebInterface()
         {
             HttpListener listener;

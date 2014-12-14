@@ -8,28 +8,101 @@ using System.Threading;
 
 namespace Database.Common
 {
+    /// <summary>
+    /// Represents a database node.
+    /// </summary>
     public abstract class Node
     {
+        /// <summary>
+        /// The amount of seconds before a connection causes a timeout.
+        /// </summary>
         private const int ConnectionTimeout = 30;
+
+        /// <summary>
+        /// The size of the buffer, in bytes, to be read at a time by the message listener.
+        /// </summary>
+        private const int MessageBufferSize = 1024;
+
+        /// <summary>
+        /// The amount of seconds before waiting for a response causes a timeout.
+        /// </summary>
         private const int ResponseTimeout = 30;
+
+        /// <summary>
+        /// A collection of the current connections.
+        /// </summary>
         private readonly Dictionary<string, Connection> _connections = new Dictionary<string, Connection>();
+
+        /// <summary>
+        /// A collection of the current messages to be processed.
+        /// </summary>
         private readonly Dictionary<string, List<byte>> _messagesReceived = new Dictionary<string, List<byte>>();
+
+        /// <summary>
+        /// A queue of the messages to be sent.
+        /// </summary>
         private readonly Queue<Message> _messagesToSend = new Queue<Message>();
+
+        /// <summary>
+        /// The port the node is running on.
+        /// </summary>
         private readonly int _port;
+
+        /// <summary>
+        /// A collection of messages that are waiting for responses.
+        /// </summary>
         private readonly Dictionary<uint, Tuple<Message, DateTime>> _waitingForResponses = new Dictionary<uint, Tuple<Message, DateTime>>();
+
+        /// <summary>
+        /// The thread dealing with various cleanup operations.
+        /// </summary>
         private Thread _cleanerThread;
+
+        /// <summary>
+        /// The thread listening for new collections.
+        /// </summary>
         private TcpListener _connectionListener;
+
+        /// <summary>
+        /// The thread listening for new messages.
+        /// </summary>
         private Thread _messageListenerThread;
+
+        /// <summary>
+        /// The thread sending messages.
+        /// </summary>
         private Thread _messageSenderThread;
+
+        /// <summary>
+        /// A value indicating whether the node is running.
+        /// </summary>
         private bool _running = false;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Node"/> class.
+        /// </summary>
+        /// <param name="port">The port to run the node on.</param>
         protected Node(int port)
         {
             _port = port;
         }
 
-        public bool Running { get { return _running; } }
+        /// <summary>
+        /// Gets a value indicating whether the node is running.
+        /// </summary>
+        public bool Running
+        {
+            get { return _running; }
+        }
 
+        /// <summary>
+        /// Runs the node.
+        /// </summary>
+        public abstract void Run();
+
+        /// <summary>
+        /// Called after the node has finished shutting down.
+        /// </summary>
         protected void AfterStop()
         {
             if (_running)
@@ -40,6 +113,9 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// Called before the node starts up.
+        /// </summary>
         protected void BeforeStart()
         {
             _running = true;
@@ -58,6 +134,10 @@ namespace Database.Common
             _cleanerThread.Start();
         }
 
+        /// <summary>
+        /// Sends a message.
+        /// </summary>
+        /// <param name="message">The message to send.</param>
         protected void SendMessage(Message message)
         {
             message.Status = MessageStatus.Sending;
@@ -67,6 +147,10 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// Process a connection request.
+        /// </summary>
+        /// <param name="result">The result of the connection listener.</param>
         private void ProcessConnectionRequest(IAsyncResult result)
         {
             TcpClient incoming;
@@ -88,10 +172,14 @@ namespace Database.Common
             }
 
             // TODO: Confirm Connection
-
             connection.Status = ConnectionStatus.Connected;
         }
 
+        /// <summary>
+        /// Processes a message.
+        /// </summary>
+        /// <param name="address">The address the message was sent from.</param>
+        /// <param name="data">The data to be decoded and processed.</param>
         private void ProcessMessage(string address, byte[] data)
         {
             Message message = new Message(address, data);
@@ -108,9 +196,13 @@ namespace Database.Common
                     }
                 }
             }
+
             Console.WriteLine(Encoding.Default.GetString(data));
         }
 
+        /// <summary>
+        /// The run method of the cleaner thread.
+        /// </summary>
         private void RunCleaner()
         {
             while (_running)
@@ -162,14 +254,18 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// The run method of the message listener thread.
+        /// </summary>
         private void RunMessageListener()
         {
-            const int messageBufferSize = 1024;
-            var messageBuffer = new byte[messageBufferSize];
+            var messageBuffer = new byte[MessageBufferSize];
             while (_running)
             {
                 // MAKE SURE THIS LOCK ORDER IS THE SAME EVERYWHERE
-                lock (_connections) lock (_messagesReceived)
+                lock (_connections)
+                {
+                    lock (_messagesReceived)
                     {
                         foreach (var connection in _connections)
                         {
@@ -186,12 +282,13 @@ namespace Database.Common
                             NetworkStream stream = connection.Value.Client.GetStream();
                             while (stream.DataAvailable)
                             {
-                                int bytesRead = stream.Read(messageBuffer, 0, messageBufferSize);
+                                int bytesRead = stream.Read(messageBuffer, 0, MessageBufferSize);
                                 _messagesReceived[connection.Key].AddRange(messageBuffer.Take(bytesRead));
                                 connection.Value.LastActiveTime = DateTime.Now;
                             }
                         }
                     }
+                }
 
                 List<Tuple<string, byte[]>> messages = new List<Tuple<string, byte[]>>();
                 lock (_messagesReceived)
@@ -218,6 +315,9 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// The run method of the message sender thread.
+        /// </summary>
         private void RunMessageSender()
         {
             while (_running)
