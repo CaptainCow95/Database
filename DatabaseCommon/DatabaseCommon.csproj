@@ -39,12 +39,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ByteArrayHelper.cs" />
     <Compile Include="Connection.cs" />
     <Compile Include="ConnectionStatus.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="Message.cs" />
     <Compile Include="MessageStatus.cs" />
+    <Compile Include="Messages\BaseMessageData.cs" />
+    <Compile Include="Messages\MessageType.cs" />
+    <Compile Include="Messages\StartConnectionMessageData.cs" />
     <Compile Include="Node.cs" />
+    <Compile Include="NodeType.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="WebInterface.cs" />
   </ItemGroup>

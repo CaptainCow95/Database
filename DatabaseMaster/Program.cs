@@ -1,8 +1,7 @@
 ﻿using Database.Common;
-using Mono.Options;
-using System;
-using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.IO;
+using System.Xml;
 
 namespace Database.Master
 {
@@ -10,46 +9,24 @@ namespace Database.Master
     {
         private static void Main(string[] args)
         {
-            int port = 12345;
-            var optionSet = new OptionSet
-            {
-                {"p|port=", "The port the program should run on.", (int e) => port = e}
-            };
-
-            List<string> extras;
-            try
-            {
-                extras = optionSet.Parse(args);
-            }
-            catch (OptionException e)
-            {
-                extras = new List<string>();
-                Console.WriteLine(e.Message);
-            }
-
-            if (extras.Count > 0)
-            {
-                Console.Write("Unknown command line options: ");
-                bool first = true;
-                foreach (var item in extras)
-                {
-                    if (first)
-                    {
-                        first = false;
-                    }
-                    else
-                    {
-                        Console.Write(", ");
-                    }
-
-                    Console.Write(item);
-                }
-            }
-
             Logger.Init(string.Empty, "master");
-            WebInterface.Start(port + 1, WebInterfaceRequestReceived);
 
-            var node = new MasterNode(port);
+            MasterNodeSettings settings;
+            if (File.Exists("masterconfig.xml"))
+            {
+                XmlDocument settingsDocument = new XmlDocument();
+                settingsDocument.Load("masterconfig.xml");
+                settings = new MasterNodeSettings(settingsDocument);
+            }
+            else
+            {
+                Logger.Log("\"masterconfig.xml\" not found, creating with the defaults.");
+                settings = new MasterNodeSettings();
+            }
+
+            WebInterface.Start(settings.WebInterfacePort, WebInterfaceRequestReceived);
+
+            var node = new MasterNode(settings);
             node.Run();
 
             WebInterface.Stop();

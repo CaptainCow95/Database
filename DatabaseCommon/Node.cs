@@ -43,10 +43,14 @@ namespace Database.Common
         /// </summary>
         private readonly Queue<Message> _messagesToSend = new Queue<Message>();
 
+        private readonly string _nodeName;
+
         /// <summary>
         /// The port the node is running on.
         /// </summary>
         private readonly int _port;
+
+        private readonly NodeType _type;
 
         /// <summary>
         /// A collection of messages that are waiting for responses.
@@ -82,9 +86,11 @@ namespace Database.Common
         /// Initializes a new instance of the <see cref="Node"/> class.
         /// </summary>
         /// <param name="port">The port to run the node on.</param>
-        protected Node(int port)
+        protected Node(NodeType type, int port, string name)
         {
+            _type = type;
             _port = port;
+            _nodeName = name;
         }
 
         /// <summary>
@@ -94,6 +100,13 @@ namespace Database.Common
         {
             get { return _running; }
         }
+
+        protected Dictionary<string, Connection> Connections
+        {
+            get { return _connections; }
+        }
+
+        protected string NodeName { get { return _nodeName; } }
 
         /// <summary>
         /// Runs the node.
@@ -170,9 +183,6 @@ namespace Database.Common
             {
                 _connections.Add(incoming.Client.RemoteEndPoint.ToString(), connection);
             }
-
-            // TODO: Confirm Connection
-            connection.Status = ConnectionStatus.Connected;
         }
 
         /// <summary>

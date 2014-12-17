@@ -7,7 +7,7 @@
     <ProjectGuid>{BABCF326-DFB8-48D9-A691-9FAAD9BBF35D}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>DatabaseMaster</RootNamespace>
+    <RootNamespace>Database.Master</RootNamespace>
     <AssemblyName>Database.Master</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
@@ -42,6 +42,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="MasterNode.cs" />
+    <Compile Include="MasterNodeDefinition.cs" />
+    <Compile Include="MasterNodeSettings.cs" />
     <Compile Include="Mono.Options\Options.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

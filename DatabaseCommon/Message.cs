@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Database.Common.Messages;
+using System;
 using System.Linq;
 using System.Threading;
 
@@ -24,10 +25,7 @@ namespace Database.Common
         /// </summary>
         private readonly string _address;
 
-        /// <summary>
-        /// The data the message contains.
-        /// </summary>
-        private byte[] _data;
+        private BaseMessageData _data;
 
         /// <summary>
         /// The id of the message.
@@ -63,9 +61,8 @@ namespace Database.Common
         /// Initializes a new instance of the <see cref="Message"/> class.
         /// </summary>
         /// <param name="address">The address the message is to be sent to.</param>
-        /// <param name="data">The data that the message will contain.</param>
         /// <param name="waitingForResponse">Whether the message is waiting for a response.</param>
-        public Message(string address, byte[] data, bool waitingForResponse)
+        public Message(string address, BaseMessageData data, bool waitingForResponse)
         {
             _address = address;
             _data = data;
@@ -78,9 +75,8 @@ namespace Database.Common
         /// Initializes a new instance of the <see cref="Message"/> class.
         /// </summary>
         /// <param name="responseTo">The message this is in response to.</param>
-        /// <param name="data">The data that the message will contain.</param>
         /// <param name="waitingForResponse">Whether the message is waiting for a response.</param>
-        public Message(Message responseTo, byte[] data, bool waitingForResponse)
+        public Message(Message responseTo, BaseMessageData data, bool waitingForResponse)
         {
             _address = responseTo.Address;
             _inResponseTo = responseTo._id;
@@ -110,10 +106,7 @@ namespace Database.Common
             get { return _address; }
         }
 
-        /// <summary>
-        /// Gets the data the message contains.
-        /// </summary>
-        public byte[] Data
+        public BaseMessageData Data
         {
             get { return _data; }
         }
@@ -125,6 +118,15 @@ namespace Database.Common
         {
             get { return _response; }
             internal set { _response = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the message should be sent, even if the connection has yet to be confirmed.
+        /// </summary>
+        public bool SendWithoutConfirmation
+        {
+            get { return _sendWithoutConfirmation; }
+            set { _sendWithoutConfirmation = value; }
         }
 
         /// <summary>
@@ -169,15 +171,6 @@ namespace Database.Common
         }
 
         /// <summary>
-        /// Gets or sets a value indicating whether the message should be sent, even if the connection has yet to be confirmed.
-        /// </summary>
-        internal bool SendWithoutConfirmation
-        {
-            get { return _sendWithoutConfirmation; }
-            set { _sendWithoutConfirmation = value; }
-        }
-
-        /// <summary>
         /// Blocks until an error occurs, the message is sent successfully if it isn't waiting for a response, or until a response is received if it is waiting for a response.
         /// </summary>
         public void BlockUntilDone()
@@ -197,9 +190,10 @@ namespace Database.Common
             byte[] idBytes = BitConverter.GetBytes(_id);
             byte[] inResponseToBytes = BitConverter.GetBytes(_inResponseTo);
             byte[] waitingForResponseBytes = BitConverter.GetBytes(_waitingForResponse);
+            byte[] rawData = _data.Encode();
 
             var message =
-                new byte[idBytes.Length + inResponseToBytes.Length + waitingForResponseBytes.Length + _data.Length];
+                new byte[idBytes.Length + inResponseToBytes.Length + waitingForResponseBytes.Length + rawData.Length];
             int index = 0;
             for (int i = 0; i < idBytes.Length; ++i, ++index)
             {
@@ -216,9 +210,9 @@ namespace Database.Common
                 message[index] = waitingForResponseBytes[i];
             }
 
-            for (int i = 0; i < _data.Length; ++i, ++index)
+            for (int i = 0; i < rawData.Length; ++i, ++index)
             {
-                message[index] = _data[i];
+                message[index] = rawData[i];
             }
 
             return message;
@@ -237,7 +231,7 @@ namespace Database.Common
             index += 4;
             _waitingForResponse = BitConverter.ToBoolean(data, index);
             index += 1;
-            _data = data.Skip(index).ToArray();
+            _data = BaseMessageData.Decode(data.Skip(index).ToArray());
         }
 
         /// <summary>
