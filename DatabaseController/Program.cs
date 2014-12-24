@@ -3,7 +3,7 @@ using System.Collections.Specialized;
 using System.IO;
 using System.Xml;
 
-namespace Database.Master
+namespace Database.Controller
 {
     public class Program
     {
@@ -11,22 +11,22 @@ namespace Database.Master
         {
             Logger.Init(string.Empty, "master");
 
-            MasterNodeSettings settings;
+            ControllerNodeSettings settings;
             if (File.Exists("masterconfig.xml"))
             {
                 XmlDocument settingsDocument = new XmlDocument();
                 settingsDocument.Load("masterconfig.xml");
-                settings = new MasterNodeSettings(settingsDocument);
+                settings = new ControllerNodeSettings(settingsDocument);
             }
             else
             {
                 Logger.Log("\"masterconfig.xml\" not found, creating with the defaults.");
-                settings = new MasterNodeSettings();
+                settings = new ControllerNodeSettings();
             }
 
             WebInterface.Start(settings.WebInterfacePort, WebInterfaceRequestReceived);
 
-            var node = new MasterNode(settings);
+            var node = new ControllerNode(settings);
             node.Run();
 
             WebInterface.Stop();

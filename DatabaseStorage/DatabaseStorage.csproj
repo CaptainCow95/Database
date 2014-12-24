@@ -7,8 +7,8 @@
     <ProjectGuid>{6BF857C6-6EFE-4ED2-B552-21886984F424}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Database.Client</RootNamespace>
-    <AssemblyName>DatabaseClient</AssemblyName>
+    <RootNamespace>Database.Storage</RootNamespace>
+    <AssemblyName>DatabaseStorage</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>

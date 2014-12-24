@@ -2,7 +2,8 @@
 {
     public enum NodeType
     {
-        Master,
-        Client
+        Controller,
+        Storage,
+        Query
     }
 }

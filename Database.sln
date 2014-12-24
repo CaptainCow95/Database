@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatabaseMaster", "DatabaseMaster\DatabaseMaster.csproj", "{BABCF326-DFB8-48D9-A691-9FAAD9BBF35D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatabaseController", "DatabaseController\DatabaseController.csproj", "{BABCF326-DFB8-48D9-A691-9FAAD9BBF35D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatabaseClient", "DatabaseClient\DatabaseClient.csproj", "{6BF857C6-6EFE-4ED2-B552-21886984F424}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatabaseStorage", "DatabaseStorage\DatabaseStorage.csproj", "{6BF857C6-6EFE-4ED2-B552-21886984F424}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatabaseCommon", "DatabaseCommon\DatabaseCommon.csproj", "{4CBD0B00-8043-46C9-8F0D-3F755A3FE4C9}"
 EndProject

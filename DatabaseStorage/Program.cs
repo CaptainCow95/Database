@@ -1,4 +1,4 @@
-﻿namespace Database.Client
+﻿namespace Database.Storage
 {
     internal class Program
     {

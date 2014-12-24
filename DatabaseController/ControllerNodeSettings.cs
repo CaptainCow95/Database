@@ -1,19 +1,19 @@
 ﻿using Database.Common;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Xml;
 
-namespace Database.Master
+namespace Database.Controller
 {
-    public class MasterNodeSettings
+    public class ControllerNodeSettings
     {
-        private List<MasterNodeDefinition> _masterList = new List<MasterNodeDefinition>();
+        private List<NodeDefinition> _connectionList = new List<NodeDefinition>();
+        private string _connectionString;
         private string _name;
         private int _port;
         private int _webInterfacePort;
 
-        public MasterNodeSettings(XmlDocument settings)
+        public ControllerNodeSettings(XmlDocument settings)
         {
             try
             {
@@ -21,13 +21,10 @@ namespace Database.Master
                 _name = node.SelectSingleNode("NodeName").InnerText;
                 _port = int.Parse(node.SelectSingleNode("Port").InnerText);
                 _webInterfacePort = int.Parse(node.SelectSingleNode("WebInterfacePort").InnerText);
-                var masterListNode = node.SelectSingleNode("MasterList");
-                foreach (var item in masterListNode.SelectNodes("Node").Cast<XmlNode>())
+                _connectionString = node.SelectSingleNode("ConnectionString").InnerText;
+                foreach (var item in _connectionString.Split(','))
                 {
-                    string nodeName = item.SelectSingleNode("NodeName").InnerText;
-                    string hostname = item.SelectSingleNode("Hostname").InnerText;
-                    int port = int.Parse(item.SelectSingleNode("Port").InnerText);
-                    _masterList.Add(new MasterNodeDefinition(nodeName, hostname, port));
+                    _connectionList.Add(new NodeDefinition(item.Split(':')[0], int.Parse(item.Split(':')[1])));
                 }
             }
             catch (Exception e)
@@ -36,7 +33,7 @@ namespace Database.Master
             }
         }
 
-        public MasterNodeSettings()
+        public ControllerNodeSettings()
         {
             _name = "Master Node";
             _port = 12345;
@@ -59,13 +56,15 @@ namespace Database.Master
             webInterfacePortElement.AppendChild(document.CreateTextNode(_webInterfacePort.ToString()));
             rootNode.AppendChild(webInterfacePortElement);
 
-            var masterListElement = document.CreateElement("MasterList");
+            var masterListElement = document.CreateElement("ConnectionString");
             rootNode.AppendChild(masterListElement);
 
             document.Save("masterconfig.xml");
         }
 
-        public List<MasterNodeDefinition> MasterList { get { return _masterList; } }
+        public List<NodeDefinition> ConnectionList { get { return _connectionList; } }
+
+        public string ConnectionString { get { return _connectionString; } }
 
         public string Name { get { return _name; } }
 

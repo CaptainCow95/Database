@@ -11,8 +11,8 @@ namespace Database.Common.Messages
             MessageType messageTypeIdConverted = (MessageType)Enum.ToObject(typeof(MessageType), messageTypeId);
             switch (messageTypeIdConverted)
             {
-                case MessageType.StartConnectionMessage:
-                    return new StartConnectionMessageData(data.Skip(4).ToArray());
+                case MessageType.JoinAttempt:
+                    return new JoinAttempt(data.Skip(4).ToArray());
 
                 default:
                     throw new Exception("Message type id not found: " + messageTypeId);

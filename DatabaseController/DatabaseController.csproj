@@ -7,8 +7,8 @@
     <ProjectGuid>{BABCF326-DFB8-48D9-A691-9FAAD9BBF35D}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Database.Master</RootNamespace>
-    <AssemblyName>Database.Master</AssemblyName>
+    <RootNamespace>Database.Controller</RootNamespace>
+    <AssemblyName>DatabaseController</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -41,10 +41,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="MasterNode.cs" />
-    <Compile Include="MasterNodeDefinition.cs" />
-    <Compile Include="MasterNodeSettings.cs" />
-    <Compile Include="Mono.Options\Options.cs" />
+    <Compile Include="ControllerNode.cs" />
+    <Compile Include="ControllerNodeSettings.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

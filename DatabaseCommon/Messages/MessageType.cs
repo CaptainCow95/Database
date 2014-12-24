@@ -2,6 +2,8 @@
 {
     public enum MessageType
     {
-        StartConnectionMessage = 0,
+        JoinAttempt = 0,
+        JoinSuccess = 1,
+        JoinFailure = 2
     }
 }

@@ -43,8 +43,6 @@ namespace Database.Common
         /// </summary>
         private readonly Queue<Message> _messagesToSend = new Queue<Message>();
 
-        private readonly string _nodeName;
-
         /// <summary>
         /// The port the node is running on.
         /// </summary>
@@ -62,10 +60,14 @@ namespace Database.Common
         /// </summary>
         private Thread _cleanerThread;
 
+        private List<NodeDefinition> _connectionList;
+
         /// <summary>
         /// The thread listening for new collections.
         /// </summary>
         private TcpListener _connectionListener;
+
+        private string _connectionString;
 
         /// <summary>
         /// The thread listening for new messages.
@@ -86,12 +88,17 @@ namespace Database.Common
         /// Initializes a new instance of the <see cref="Node"/> class.
         /// </summary>
         /// <param name="port">The port to run the node on.</param>
-        protected Node(NodeType type, int port, string name)
+        protected Node(NodeType type, int port, string connectionString, List<NodeDefinition> connectionList)
         {
             _type = type;
             _port = port;
-            _nodeName = name;
+            _connectionString = connectionString;
+            _connectionList = connectionList;
         }
+
+        public List<NodeDefinition> ConnectionList { get { return _connectionList; } }
+
+        public string ConnectionString { get { return _connectionString; } }
 
         /// <summary>
         /// Gets a value indicating whether the node is running.
@@ -105,8 +112,6 @@ namespace Database.Common
         {
             get { return _connections; }
         }
-
-        protected string NodeName { get { return _nodeName; } }
 
         /// <summary>
         /// Runs the node.
