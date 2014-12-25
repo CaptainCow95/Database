@@ -44,6 +44,8 @@
     <Compile Include="ConnectionStatus.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="Messages\JoinAttempt.cs" />
+    <Compile Include="Messages\JoinFailure.cs" />
+    <Compile Include="Messages\JoinSuccess.cs" />
     <Compile Include="NodeDefinition.cs" />
     <Compile Include="Message.cs" />
     <Compile Include="MessageStatus.cs" />
