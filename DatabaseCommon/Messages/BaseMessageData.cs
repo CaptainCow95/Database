@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 
 namespace Database.Common.Messages
 {
@@ -7,12 +6,13 @@ namespace Database.Common.Messages
     {
         public static BaseMessageData Decode(byte[] data)
         {
-            int messageTypeId = BitConverter.ToInt32(data, 0);
+            int index = 0;
+            int messageTypeId = ByteArrayHelper.ToInt32(data, ref index);
             MessageType messageTypeIdConverted = (MessageType)Enum.ToObject(typeof(MessageType), messageTypeId);
             switch (messageTypeIdConverted)
             {
                 case MessageType.JoinAttempt:
-                    return new JoinAttempt(data.Skip(4).ToArray());
+                    return new JoinAttempt(data, index);
 
                 default:
                     throw new Exception("Message type id not found: " + messageTypeId);

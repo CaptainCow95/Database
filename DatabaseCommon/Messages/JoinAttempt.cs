@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Text;
 
 namespace Database.Common.Messages
 {
@@ -18,22 +17,12 @@ namespace Database.Common.Messages
             _settings = settings;
         }
 
-        internal JoinAttempt(byte[] data)
+        internal JoinAttempt(byte[] data, int index)
         {
-            int index = 0;
-            int nodeType = BitConverter.ToInt32(data, index);
-            index += 4;
-            _type = (NodeType)Enum.ToObject(typeof(NodeType), nodeType);
-            int nodeNameLength = BitConverter.ToInt32(data, index);
-            index += 4;
-            _name = Encoding.UTF8.GetString(data, index, nodeNameLength);
-            index += nodeNameLength;
-            _port = BitConverter.ToInt32(data, index);
-            index += 4;
-            int settingsLength = BitConverter.ToInt32(data, index);
-            index += 4;
-            _settings = Encoding.UTF8.GetString(data, index, settingsLength);
-            index += settingsLength;
+            _type = (NodeType)Enum.ToObject(typeof(NodeType), ByteArrayHelper.ToInt32(data, ref index));
+            _name = ByteArrayHelper.ToString(data, ref index);
+            _port = ByteArrayHelper.ToInt32(data, ref index);
+            _settings = ByteArrayHelper.ToString(data, ref index);
         }
 
         public string Name { get { return _name; } }
@@ -46,14 +35,12 @@ namespace Database.Common.Messages
 
         public override byte[] EncodeInternal()
         {
-            byte[] typeBytes = BitConverter.GetBytes((int)_type);
-            byte[] nameBytes = Encoding.UTF8.GetBytes(_name);
-            byte[] nameLengthBytes = BitConverter.GetBytes(nameBytes.Length);
-            byte[] portBytes = BitConverter.GetBytes(_port);
-            byte[] settingsBytes = Encoding.UTF8.GetBytes(_settings);
-            byte[] settingsLengthBytes = BitConverter.GetBytes(settingsBytes.Length);
+            byte[] typeBytes = ByteArrayHelper.ToBytes((int)_type);
+            byte[] nameBytes = ByteArrayHelper.ToBytes(_name);
+            byte[] portBytes = ByteArrayHelper.ToBytes(_port);
+            byte[] settingsBytes = ByteArrayHelper.ToBytes(_settings);
 
-            return ByteArrayHelper.Combine(typeBytes, nameLengthBytes, nameBytes, portBytes, settingsLengthBytes, settingsBytes);
+            return ByteArrayHelper.Combine(typeBytes, nameBytes, portBytes, settingsBytes);
         }
 
         protected override int GetMessageTypeId()
