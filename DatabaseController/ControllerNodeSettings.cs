@@ -1,75 +1,80 @@
 ﻿using Database.Common;
-using System;
-using System.Collections.Generic;
+using System.Globalization;
 using System.Xml;
 
 namespace Database.Controller
 {
-    public class ControllerNodeSettings
+    public class ControllerNodeSettings : Settings
     {
-        private List<NodeDefinition> _connectionList = new List<NodeDefinition>();
         private string _connectionString;
-        private string _name;
-        private int _port;
-        private int _webInterfacePort;
+        private int _maxChunkItemCount = 1000;
 
-        public ControllerNodeSettings(XmlDocument settings)
+        private int _maxChunkSize = 64 * 1024;
+
+        // Max size of 64kb
+        private int _port = 12345;
+
+        private int _redundentNodesPerLocation = 3;
+
+        private int _webInterfacePort = 12346;
+
+        public ControllerNodeSettings(string xml)
+            : base(xml)
         {
-            try
-            {
-                var node = settings.SelectSingleNode("Settings");
-                _name = node.SelectSingleNode("NodeName").InnerText;
-                _port = int.Parse(node.SelectSingleNode("Port").InnerText);
-                _webInterfacePort = int.Parse(node.SelectSingleNode("WebInterfacePort").InnerText);
-                _connectionString = node.SelectSingleNode("ConnectionString").InnerText;
-                foreach (var item in _connectionString.Split(','))
-                {
-                    _connectionList.Add(new NodeDefinition(item.Split(':')[0], int.Parse(item.Split(':')[1])));
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Log("Exception occurred during loading of settings. Please check your settings config.\n" + e.StackTrace);
-            }
         }
 
         public ControllerNodeSettings()
+            : base()
         {
-            _name = "Master Node";
-            _port = 12345;
-            _webInterfacePort = _port + 1;
-
-            XmlDocument document = new XmlDocument();
-
-            var rootNode = document.CreateElement("Settings");
-            document.AppendChild(rootNode);
-
-            var nodeNameElement = document.CreateElement("NodeName");
-            nodeNameElement.AppendChild(document.CreateTextNode(_name));
-            rootNode.AppendChild(nodeNameElement);
-
-            var portElement = document.CreateElement("Port");
-            portElement.AppendChild(document.CreateTextNode(_port.ToString()));
-            rootNode.AppendChild(portElement);
-
-            var webInterfacePortElement = document.CreateElement("WebInterfacePort");
-            webInterfacePortElement.AppendChild(document.CreateTextNode(_webInterfacePort.ToString()));
-            rootNode.AppendChild(webInterfacePortElement);
-
-            var masterListElement = document.CreateElement("ConnectionString");
-            rootNode.AppendChild(masterListElement);
-
-            document.Save("masterconfig.xml");
         }
-
-        public List<NodeDefinition> ConnectionList { get { return _connectionList; } }
 
         public string ConnectionString { get { return _connectionString; } }
 
-        public string Name { get { return _name; } }
+        public int MaxChunkItemCount { get { return _maxChunkItemCount; } }
+
+        public int MaxChunkSize { get { return _maxChunkSize; } }
 
         public int Port { get { return _port; } }
 
+        public int RedundentNodesPerLocation { get { return _redundentNodesPerLocation; } }
+
         public int WebInterfacePort { get { return _webInterfacePort; } }
+
+        protected override void Load(XmlNode settings)
+        {
+            _connectionString = settings.SelectSingleNode("ConnectionString").InnerText;
+            _port = int.Parse(settings.SelectSingleNode("Port").InnerText);
+            _webInterfacePort = int.Parse(settings.SelectSingleNode("WebInterfacePort").InnerText);
+            _maxChunkSize = int.Parse(settings.SelectSingleNode("MaxChunkSize").InnerText);
+            _maxChunkItemCount = int.Parse(settings.SelectSingleNode("MaxChunkItemCount").InnerText);
+            _redundentNodesPerLocation = int.Parse(settings.SelectSingleNode("RedundentNodesPerLocation").InnerText);
+        }
+
+        protected override void Save(XmlDocument document, XmlNode root)
+        {
+            var connectionStringNode = document.CreateElement("ConnectionString");
+            connectionStringNode.InnerText = _connectionString;
+            root.AppendChild(connectionStringNode);
+
+            var portNode = document.CreateElement("Port");
+            portNode.InnerText = _port.ToString(CultureInfo.InvariantCulture);
+            root.AppendChild(portNode);
+
+            var webInterfacePortNode = document.CreateElement("WebInterfacePort");
+            webInterfacePortNode.InnerText = _webInterfacePort.ToString(CultureInfo.InvariantCulture);
+            root.AppendChild(webInterfacePortNode);
+
+            var maxChunkSizeNode = document.CreateElement("MaxChunkSize");
+            maxChunkSizeNode.InnerText = _maxChunkSize.ToString(CultureInfo.InvariantCulture);
+            root.AppendChild(maxChunkSizeNode);
+
+            var maxChunkItemCountNode = document.CreateElement("MaxChunkItemCount");
+            maxChunkItemCountNode.InnerText = _maxChunkItemCount.ToString(CultureInfo.InvariantCulture);
+            root.AppendChild(maxChunkItemCountNode);
+
+            var redundentNodesPerLocation = document.CreateElement("RedundentNodesPerLocation");
+            redundentNodesPerLocation.InnerText = _redundentNodesPerLocation.ToString(CultureInfo.InvariantCulture);
+            root.AppendChild(redundentNodesPerLocation);
+        }
     }
 }

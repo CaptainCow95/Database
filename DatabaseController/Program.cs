@@ -1,7 +1,6 @@
 ﻿using Database.Common;
 using System.Collections.Specialized;
 using System.IO;
-using System.Xml;
 
 namespace Database.Controller
 {
@@ -9,19 +8,18 @@ namespace Database.Controller
     {
         private static void Main(string[] args)
         {
-            Logger.Init(string.Empty, "master");
+            Logger.Init(string.Empty, "controller");
 
             ControllerNodeSettings settings;
-            if (File.Exists("masterconfig.xml"))
+            if (File.Exists("config.xml"))
             {
-                XmlDocument settingsDocument = new XmlDocument();
-                settingsDocument.Load("masterconfig.xml");
-                settings = new ControllerNodeSettings(settingsDocument);
+                settings = new ControllerNodeSettings(File.ReadAllText("config.xml"));
             }
             else
             {
-                Logger.Log("\"masterconfig.xml\" not found, creating with the defaults.");
+                Logger.Log("\"config.xml\" not found, creating with the defaults.");
                 settings = new ControllerNodeSettings();
+                File.WriteAllText("config.xml", settings.ToString());
             }
 
             WebInterface.Start(settings.WebInterfacePort, WebInterfaceRequestReceived);

@@ -1,6 +1,4 @@
 ﻿using Database.Common.Messages;
-using System;
-using System.Linq;
 using System.Threading;
 
 namespace Database.Common
@@ -23,7 +21,7 @@ namespace Database.Common
         /// <summary>
         /// The address where the message came from or will be sent to.
         /// </summary>
-        private readonly string _address;
+        private NodeDefinition _address;
 
         private BaseMessageData _data;
 
@@ -62,7 +60,7 @@ namespace Database.Common
         /// </summary>
         /// <param name="address">The address the message is to be sent to.</param>
         /// <param name="waitingForResponse">Whether the message is waiting for a response.</param>
-        public Message(string address, BaseMessageData data, bool waitingForResponse)
+        public Message(NodeDefinition address, BaseMessageData data, bool waitingForResponse)
         {
             _address = address;
             _data = data;
@@ -91,7 +89,7 @@ namespace Database.Common
         /// </summary>
         /// <param name="address">The address this message is from.</param>
         /// <param name="data">The message data to decode.</param>
-        internal Message(string address, byte[] data)
+        internal Message(NodeDefinition address, byte[] data)
         {
             _address = address;
             DecodeMessage(data);
@@ -99,11 +97,12 @@ namespace Database.Common
         }
 
         /// <summary>
-        /// Gets the address where the message came from or will be sent to.
+        /// Gets or sets the address where the message came from or will be sent to.
         /// </summary>
-        public string Address
+        public NodeDefinition Address
         {
             get { return _address; }
+            set { _address = value; }
         }
 
         public BaseMessageData Data
@@ -175,7 +174,7 @@ namespace Database.Common
         /// </summary>
         public void BlockUntilDone()
         {
-            while (_status != MessageStatus.Sending && _status != MessageStatus.WaitingForResponse)
+            while (_status == MessageStatus.Sending || _status == MessageStatus.WaitingForResponse)
             {
                 Thread.Sleep(1);
             }
@@ -187,35 +186,15 @@ namespace Database.Common
         /// <returns>The encoded message.</returns>
         internal byte[] EncodeMessage()
         {
-            byte[] idBytes = BitConverter.GetBytes(_id);
-            byte[] inResponseToBytes = BitConverter.GetBytes(_inResponseTo);
-            byte[] waitingForResponseBytes = BitConverter.GetBytes(_waitingForResponse);
+            byte[] idBytes = ByteArrayHelper.ToBytes(_id);
+            byte[] inResponseToBytes = ByteArrayHelper.ToBytes(_inResponseTo);
+            byte[] waitingForResponseBytes = ByteArrayHelper.ToBytes(_waitingForResponse);
             byte[] rawData = _data.Encode();
+            byte[] lengthBytes =
+                ByteArrayHelper.ToBytes(idBytes.Length + inResponseToBytes.Length + waitingForResponseBytes.Length +
+                                        rawData.Length);
 
-            var message =
-                new byte[idBytes.Length + inResponseToBytes.Length + waitingForResponseBytes.Length + rawData.Length];
-            int index = 0;
-            for (int i = 0; i < idBytes.Length; ++i, ++index)
-            {
-                message[index] = idBytes[i];
-            }
-
-            for (int i = 0; i < inResponseToBytes.Length; ++i, ++index)
-            {
-                message[index] = inResponseToBytes[i];
-            }
-
-            for (int i = 0; i < waitingForResponseBytes.Length; ++i, ++index)
-            {
-                message[index] = waitingForResponseBytes[i];
-            }
-
-            for (int i = 0; i < rawData.Length; ++i, ++index)
-            {
-                message[index] = rawData[i];
-            }
-
-            return message;
+            return ByteArrayHelper.Combine(lengthBytes, idBytes, inResponseToBytes, waitingForResponseBytes, rawData);
         }
 
         /// <summary>
@@ -225,13 +204,10 @@ namespace Database.Common
         private void DecodeMessage(byte[] data)
         {
             int index = 0;
-            _id = BitConverter.ToUInt32(data, index);
-            index += 4;
-            _inResponseTo = BitConverter.ToUInt32(data, index);
-            index += 4;
-            _waitingForResponse = BitConverter.ToBoolean(data, index);
-            index += 1;
-            _data = BaseMessageData.Decode(data.Skip(index).ToArray());
+            _id = ByteArrayHelper.ToUInt32(data, ref index);
+            _inResponseTo = ByteArrayHelper.ToUInt32(data, ref index);
+            _waitingForResponse = ByteArrayHelper.ToBoolean(data, ref index);
+            _data = BaseMessageData.Decode(data, index);
         }
 
         /// <summary>

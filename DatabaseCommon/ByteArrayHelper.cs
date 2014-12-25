@@ -31,6 +31,11 @@ namespace Database.Common
             return BitConverter.GetBytes(value);
         }
 
+        public static byte[] ToBytes(uint value)
+        {
+            return BitConverter.GetBytes(value);
+        }
+
         public static byte[] ToBytes(bool value)
         {
             return BitConverter.GetBytes(value);
@@ -54,6 +59,13 @@ namespace Database.Common
             int length = ToInt32(data, ref index);
             string returnValue = Encoding.UTF8.GetString(data, index, length);
             index += length;
+            return returnValue;
+        }
+
+        public static uint ToUInt32(byte[] data, ref int index)
+        {
+            uint returnValue = BitConverter.ToUInt32(data, index);
+            index += sizeof(uint);
             return returnValue;
         }
     }

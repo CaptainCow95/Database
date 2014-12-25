@@ -142,7 +142,7 @@ namespace Database.Common
             }
             catch (HttpListenerException)
             {
-                Logger.Log("Could not initiate web interface for all incoming connections, initiating for localhost only. Please run the server as administrator for web interface access from all incoming connections.");
+                Logger.Log("Could not initiate web interface for all incoming connections, initiating for localhost only. Please run the program as administrator for web interface access from all incoming connections.");
                 listener = new HttpListener();
                 listener.Prefixes.Add("http://localhost:" + _port + "/");
                 listener.Start();
