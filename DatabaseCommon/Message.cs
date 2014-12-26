@@ -59,6 +59,7 @@ namespace Database.Common
         /// Initializes a new instance of the <see cref="Message"/> class.
         /// </summary>
         /// <param name="address">The address the message is to be sent to.</param>
+        /// <param name="data">The data to be sent in the message.</param>
         /// <param name="waitingForResponse">Whether the message is waiting for a response.</param>
         public Message(NodeDefinition address, BaseMessageData data, bool waitingForResponse)
         {
@@ -73,6 +74,7 @@ namespace Database.Common
         /// Initializes a new instance of the <see cref="Message"/> class.
         /// </summary>
         /// <param name="responseTo">The message this is in response to.</param>
+        /// <param name="data">The data to be sent in the message.</param>
         /// <param name="waitingForResponse">Whether the message is waiting for a response.</param>
         public Message(Message responseTo, BaseMessageData data, bool waitingForResponse)
         {

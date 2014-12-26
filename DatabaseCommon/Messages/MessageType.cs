@@ -4,6 +4,7 @@
     {
         JoinAttempt = 0,
         JoinSuccess = 1,
-        JoinFailure = 2
+        JoinFailure = 2,
+        Heartbeat = 3,
     }
 }

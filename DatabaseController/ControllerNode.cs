@@ -11,7 +11,7 @@ namespace Database.Controller
         private ControllerNodeSettings _settings;
 
         public ControllerNode(ControllerNodeSettings settings)
-            : base(NodeType.Controller, settings.Port)
+            : base(settings.Port)
         {
             _settings = settings;
         }

@@ -6,7 +6,7 @@ namespace Database.Controller
 {
     public class Program
     {
-        private static void Main(string[] args)
+        private static void Main()
         {
             Logger.Init(string.Empty, "controller");
 

@@ -44,7 +44,7 @@ namespace Database.Common
         public static byte[] ToBytes(string value)
         {
             byte[] stringData = Encoding.UTF8.GetBytes(value);
-            return ByteArrayHelper.Combine(BitConverter.GetBytes(stringData.Length), stringData);
+            return Combine(BitConverter.GetBytes(stringData.Length), stringData);
         }
 
         public static int ToInt32(byte[] data, ref int index)

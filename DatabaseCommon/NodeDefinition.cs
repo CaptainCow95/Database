@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 
 namespace Database.Common
@@ -49,27 +50,25 @@ namespace Database.Common
 
             try
             {
-                IPAddress[] hostIPs = Dns.GetHostAddresses(_hostname);
-                IPAddress[] localIPs = Dns.GetHostAddresses(Dns.GetHostName());
+                IPAddress[] hostAddresses = Dns.GetHostAddresses(_hostname);
+                IPAddress[] localAddresses = Dns.GetHostAddresses(Dns.GetHostName());
 
-                foreach (var hostIP in hostIPs)
+                foreach (var hostAddress in hostAddresses)
                 {
-                    if (IPAddress.IsLoopback(hostIP))
+                    if (IPAddress.IsLoopback(hostAddress))
                     {
                         return true;
                     }
 
-                    foreach (var localIP in localIPs)
+                    if (localAddresses.Contains(hostAddress))
                     {
-                        if (hostIP.Equals(localIP))
-                        {
-                            return true;
-                        }
+                        return true;
                     }
                 }
             }
             catch
             {
+                // Something probably went wrong with the networking to figure out the hostnames, just return false.
             }
 
             return false;

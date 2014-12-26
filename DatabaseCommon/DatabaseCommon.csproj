@@ -43,6 +43,7 @@
     <Compile Include="Connection.cs" />
     <Compile Include="ConnectionStatus.cs" />
     <Compile Include="Logger.cs" />
+    <Compile Include="Messages\Heartbeat.cs" />
     <Compile Include="Messages\JoinAttempt.cs" />
     <Compile Include="Messages\JoinFailure.cs" />
     <Compile Include="Messages\JoinSuccess.cs" />

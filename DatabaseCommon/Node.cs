@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Database.Common.Messages;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -16,6 +17,11 @@ namespace Database.Common
         /// The amount of seconds before a connection causes a timeout.
         /// </summary>
         private const int ConnectionTimeout = 30;
+
+        /// <summary>
+        /// The amount of seconds before a heartbeat is sent out to all connections.
+        /// </summary>
+        private const int HeartbeatInterval = 10;
 
         /// <summary>
         /// The size of the buffer, in bytes, to be read at a time by the message listener.
@@ -47,8 +53,6 @@ namespace Database.Common
         /// </summary>
         private readonly int _port;
 
-        private readonly NodeType _type;
-
         /// <summary>
         /// A collection of messages that are waiting for responses.
         /// </summary>
@@ -63,6 +67,8 @@ namespace Database.Common
         /// The thread listening for new collections.
         /// </summary>
         private TcpListener _connectionListener;
+
+        private Thread _heartbeatThread;
 
         /// <summary>
         /// The thread listening for new messages.
@@ -83,9 +89,8 @@ namespace Database.Common
         /// Initializes a new instance of the <see cref="Node"/> class.
         /// </summary>
         /// <param name="port">The port to run the node on.</param>
-        protected Node(NodeType type, int port)
+        protected Node(int port)
         {
-            _type = type;
             _port = port;
         }
 
@@ -139,6 +144,9 @@ namespace Database.Common
 
             _cleanerThread = new Thread(RunCleaner);
             _cleanerThread.Start();
+
+            _heartbeatThread = new Thread(RunHeartbeat);
+            _heartbeatThread.Start();
         }
 
         protected abstract void MessageReceived(Message message);
@@ -217,6 +225,10 @@ namespace Database.Common
         private void ProcessMessage(NodeDefinition address, byte[] data)
         {
             Message message = new Message(address, data);
+
+            // If the message is in response to another message, then don't send an event.
+            // Also, if the message is a Heartbeat, we don't need to do anything,
+            // the last connection time should have been updated when it was received.
             if (message.InResponseTo != 0)
             {
                 lock (_waitingForResponses)
@@ -230,7 +242,7 @@ namespace Database.Common
                     }
                 }
             }
-            else
+            else if (!(message.Data is Heartbeat))
             {
                 ThreadPool.QueueUserWorkItem(MessageReceivedHandler, message);
             }
@@ -286,6 +298,30 @@ namespace Database.Common
                 {
                     Thread.Sleep(250);
                     ++i;
+                }
+            }
+        }
+
+        private void RunHeartbeat()
+        {
+            for (int i = 0; i < HeartbeatInterval && _running; ++i)
+            {
+                Thread.Sleep(1);
+            }
+
+            while (_running)
+            {
+                lock (_connections)
+                {
+                    foreach (var connection in _connections)
+                    {
+                        ThreadPool.QueueUserWorkItem(SendHeartbeat, connection.Key);
+                    }
+
+                    for (int i = 0; i < HeartbeatInterval && _running; ++i)
+                    {
+                        Thread.Sleep(1);
+                    }
                 }
             }
         }
@@ -427,6 +463,11 @@ namespace Database.Common
 
                 Thread.Sleep(1);
             }
+        }
+
+        private void SendHeartbeat(object address)
+        {
+            SendMessage(new Message((NodeDefinition)address, new Heartbeat(), false));
         }
     }
 }

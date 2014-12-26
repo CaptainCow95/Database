@@ -19,6 +19,9 @@ namespace Database.Common.Messages
                 case MessageType.JoinFailure:
                     return new JoinFailure(data, index);
 
+                case MessageType.Heartbeat:
+                    return new Heartbeat();
+
                 default:
                     throw new Exception("Message type id not found: " + messageTypeId);
             }
