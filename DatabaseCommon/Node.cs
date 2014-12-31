@@ -1,6 +1,7 @@
 ﻿using Database.Common.Messages;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -107,6 +108,21 @@ namespace Database.Common
             get { return _connections; }
         }
 
+        public ReadOnlyCollection<Tuple<NodeDefinition, NodeType>> GetConnectedNodes()
+        {
+            List<Tuple<NodeDefinition, NodeType>> list = new List<Tuple<NodeDefinition, NodeType>>();
+
+            lock (_connections)
+            {
+                foreach (var item in _connections)
+                {
+                    list.Add(new Tuple<NodeDefinition, NodeType>(item.Key, item.Value.NodeType));
+                }
+            }
+
+            return list.AsReadOnly();
+        }
+
         /// <summary>
         /// Runs the node.
         /// </summary>
@@ -209,7 +225,7 @@ namespace Database.Common
                 return;
             }
 
-            Connection connection = new Connection(incoming, DateTime.UtcNow, ConnectionStatus.ConfirmingConnection);
+            Connection connection = new Connection(incoming);
             lock (_connections)
             {
                 NodeDefinition def = new NodeDefinition(((IPEndPoint)incoming.Client.RemoteEndPoint).Address.ToString(), ((IPEndPoint)incoming.Client.RemoteEndPoint).Port);
@@ -356,7 +372,7 @@ namespace Database.Common
                             {
                                 int bytesRead = stream.Read(messageBuffer, 0, MessageBufferSize);
                                 _messagesReceived[connection.Key].AddRange(messageBuffer.Take(bytesRead));
-                                connection.Value.LastActiveTime = DateTime.UtcNow;
+                                connection.Value.ResetLastActiveTime();
                             }
                         }
                     }
@@ -413,8 +429,7 @@ namespace Database.Common
                                     {
                                         TcpClient client = new TcpClient(message.Address.Hostname, message.Address.Port);
                                         _connections.Add(message.Address,
-                                            new Connection(client, DateTime.UtcNow,
-                                                ConnectionStatus.ConfirmingConnection));
+                                            new Connection(client));
                                     }
 
                                     if (message.WaitingForResponse)

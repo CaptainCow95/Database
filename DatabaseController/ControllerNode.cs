@@ -61,7 +61,7 @@ namespace Database.Controller
                         else
                         {
                             // success
-                            Connections[def].Status = ConnectionStatus.Connected;
+                            Connections[def].ConnectionEstablished(NodeType.Controller);
                         }
                     }
                 }
@@ -113,7 +113,7 @@ namespace Database.Controller
                             Message response = new Message(message, new JoinSuccess(_primary), false);
                             response.Address = nodeDef;
                             SendMessage(response);
-                            Connections[nodeDef].Status = ConnectionStatus.Connected;
+                            Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
                         }
 
                         break;

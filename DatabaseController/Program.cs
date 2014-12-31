@@ -1,11 +1,57 @@
 ﻿using Database.Common;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
+using System.Text;
 
 namespace Database.Controller
 {
     public class Program
     {
+        private static ControllerNode _node;
+
+        private static string CreateMainPage()
+        {
+            if (_node != null)
+            {
+                var list = _node.GetConnectedNodes();
+                var controllers = new List<NodeDefinition>();
+                var storage = new List<NodeDefinition>();
+                var query = new List<NodeDefinition>();
+
+                foreach (var item in list)
+                {
+                    switch (item.Item2)
+                    {
+                        case NodeType.Controller:
+                            controllers.Add(item.Item1);
+                            break;
+
+                        case NodeType.Storage:
+                            storage.Add(item.Item1);
+                            break;
+
+                        case NodeType.Query:
+                            query.Add(item.Item1);
+                            break;
+                    }
+                }
+
+                StringBuilder page = new StringBuilder();
+                page.Append("<html><body><b>Controllers:</b><br /><ul>");
+                controllers.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
+                page.Append("</ul><b>Storage:</b><br /><ul>");
+                storage.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
+                page.Append("</ul><b>Query:</b><br /><ul>");
+                query.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
+                page.Append("</ul></body></html>");
+
+                return page.ToString();
+            }
+
+            return "<html><body>Node is not available at this time.</body></html>";
+        }
+
         private static void Main()
         {
             Logger.Init(string.Empty, "controller");
@@ -24,8 +70,8 @@ namespace Database.Controller
 
             WebInterface.Start(settings.WebInterfacePort, WebInterfaceRequestReceived);
 
-            var node = new ControllerNode(settings);
-            node.Run();
+            _node = new ControllerNode(settings);
+            _node.Run();
 
             WebInterface.Stop();
         }
@@ -35,10 +81,7 @@ namespace Database.Controller
             switch (page)
             {
                 case "":
-                    return "<html><body>Main Page\n" + queryString + "</body></html>";
-
-                case "status":
-                    return "<html><body>Status Page\n" + queryString + "</body></html>";
+                    return CreateMainPage();
 
                 default:
                     return "<html><body>Unknown Page</body></html>";

@@ -12,13 +12,12 @@ namespace Database.Common
         /// Initializes a new instance of the <see cref="Connection"/> class.
         /// </summary>
         /// <param name="client">The <see cref="TcpClient"/> that represents the node.</param>
-        /// <param name="lastActiveTime">The last time the connection was active.</param>
-        /// <param name="status">The current status of the connection.</param>
-        public Connection(TcpClient client, DateTime lastActiveTime, ConnectionStatus status)
+        public Connection(TcpClient client)
         {
             Client = client;
-            LastActiveTime = lastActiveTime;
-            Status = status;
+            LastActiveTime = DateTime.UtcNow;
+            Status = ConnectionStatus.ConfirmingConnection;
+            NodeType = NodeType.Unknown;
         }
 
         /// <summary>
@@ -29,11 +28,24 @@ namespace Database.Common
         /// <summary>
         /// Gets or sets the last time the connection was active.
         /// </summary>
-        public DateTime LastActiveTime { get; set; }
+        public DateTime LastActiveTime { get; private set; }
+
+        public NodeType NodeType { get; private set; }
 
         /// <summary>
         /// Gets or sets the current status of the connection.
         /// </summary>
-        public ConnectionStatus Status { get; set; }
+        public ConnectionStatus Status { get; private set; }
+
+        public void ConnectionEstablished(NodeType type)
+        {
+            NodeType = type;
+            Status = ConnectionStatus.Connected;
+        }
+
+        public void ResetLastActiveTime()
+        {
+            LastActiveTime = DateTime.UtcNow;
+        }
     }
 }
