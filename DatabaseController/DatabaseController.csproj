@@ -55,6 +55,10 @@
       <Project>{4cbd0b00-8043-46c9-8f0d-3f755a3fe4c9}</Project>
       <Name>DatabaseCommon</Name>
     </ProjectReference>
+    <ProjectReference Include="..\DatabaseStorage\DatabaseStorage.csproj">
+      <Project>{6bf857c6-6efe-4ed2-b552-21886984f424}</Project>
+      <Name>DatabaseStorage</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

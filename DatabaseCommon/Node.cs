@@ -103,6 +103,8 @@ namespace Database.Common
             get { return _running; }
         }
 
+        public abstract NodeDefinition Self { get; }
+
         protected Dictionary<NodeDefinition, Connection> Connections
         {
             get { return _connections; }
@@ -449,16 +451,7 @@ namespace Database.Common
                                         ? MessageStatus.WaitingForResponse
                                         : MessageStatus.Sent;
                                 }
-                                catch (SocketException)
-                                {
-                                    message.Status = MessageStatus.SendingFailure;
-
-                                    lock (_waitingForResponses)
-                                    {
-                                        _waitingForResponses.Remove(message.ID);
-                                    }
-                                }
-                                catch (ObjectDisposedException)
+                                catch (Exception)
                                 {
                                     message.Status = MessageStatus.SendingFailure;
 

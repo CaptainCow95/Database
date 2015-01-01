@@ -1,5 +1,6 @@
 ﻿using Database.Common;
 using Database.Common.Messages;
+using Database.Storage;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -8,12 +9,18 @@ namespace Database.Controller
     public class ControllerNode : Node
     {
         private bool _primary = false;
+        private NodeDefinition _self;
         private ControllerNodeSettings _settings;
 
         public ControllerNode(ControllerNodeSettings settings)
             : base(settings.Port)
         {
             _settings = settings;
+        }
+
+        public override NodeDefinition Self
+        {
+            get { return _self; }
         }
 
         public override void Run()
@@ -23,17 +30,17 @@ namespace Database.Controller
             List<NodeDefinition> controllerNodes = NodeDefinition.ParseConnectionString(_settings.ConnectionString);
 
             // Find yourself
-            NodeDefinition self = null;
+            _self = null;
             foreach (var def in controllerNodes)
             {
                 if (def.IsSelf(_settings.Port))
                 {
-                    self = def;
+                    _self = def;
                     break;
                 }
             }
 
-            if (self == null)
+            if (_self == null)
             {
                 Logger.Log("Could not find myself in the connection string.");
                 AfterStop();
@@ -42,9 +49,9 @@ namespace Database.Controller
 
             foreach (var def in controllerNodes)
             {
-                if (def != self)
+                if (def != _self)
                 {
-                    Message message = new Message(def, new JoinAttempt(NodeType.Controller, self.Hostname, self.Port, _settings.ToString()), true);
+                    Message message = new Message(def, new JoinAttempt(NodeType.Controller, _self.Hostname, _self.Port, _settings.ToString()), true);
                     message.SendWithoutConfirmation = true;
                     SendMessage(message);
                     message.BlockUntilDone();
@@ -122,6 +129,21 @@ namespace Database.Controller
                         break;
 
                     case NodeType.Storage:
+                        StorageNodeSettings storageJoinSettings = new StorageNodeSettings(joinAttemptData.Settings);
+                        if (storageJoinSettings.ConnectionString != _settings.ConnectionString)
+                        {
+                            SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
+                        }
+                        else
+                        {
+                            NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
+                            RenameConnection(message.Address, nodeDef);
+                            Message response = new Message(message, new JoinSuccess(_primary), false);
+                            response.Address = nodeDef;
+                            SendMessage(response);
+                            Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
+                        }
+
                         break;
                 }
             }

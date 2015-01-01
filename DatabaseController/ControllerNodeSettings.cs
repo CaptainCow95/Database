@@ -1,5 +1,4 @@
 ﻿using Database.Common;
-using System.Globalization;
 using System.Xml;
 
 namespace Database.Controller
@@ -42,39 +41,22 @@ namespace Database.Controller
 
         protected override void Load(XmlNode settings)
         {
-            _connectionString = settings.SelectSingleNode("ConnectionString").InnerText;
-            _port = int.Parse(settings.SelectSingleNode("Port").InnerText);
-            _webInterfacePort = int.Parse(settings.SelectSingleNode("WebInterfacePort").InnerText);
-            _maxChunkSize = int.Parse(settings.SelectSingleNode("MaxChunkSize").InnerText);
-            _maxChunkItemCount = int.Parse(settings.SelectSingleNode("MaxChunkItemCount").InnerText);
-            _redundentNodesPerLocation = int.Parse(settings.SelectSingleNode("RedundentNodesPerLocation").InnerText);
+            _connectionString = ReadString(settings, "ConnectionString", _connectionString);
+            _port = ReadInt32(settings, "Port", _port);
+            _webInterfacePort = ReadInt32(settings, "WebInterfacePort", _webInterfacePort);
+            _maxChunkSize = ReadInt32(settings, "MaxChunkSize", _maxChunkSize);
+            _maxChunkItemCount = ReadInt32(settings, "MaxChunkItemCount", _maxChunkItemCount);
+            _redundentNodesPerLocation = ReadInt32(settings, "RedundentNodesPerLocation", _redundentNodesPerLocation);
         }
 
         protected override void Save(XmlDocument document, XmlNode root)
         {
-            var connectionStringNode = document.CreateElement("ConnectionString");
-            connectionStringNode.InnerText = _connectionString;
-            root.AppendChild(connectionStringNode);
-
-            var portNode = document.CreateElement("Port");
-            portNode.InnerText = _port.ToString(CultureInfo.InvariantCulture);
-            root.AppendChild(portNode);
-
-            var webInterfacePortNode = document.CreateElement("WebInterfacePort");
-            webInterfacePortNode.InnerText = _webInterfacePort.ToString(CultureInfo.InvariantCulture);
-            root.AppendChild(webInterfacePortNode);
-
-            var maxChunkSizeNode = document.CreateElement("MaxChunkSize");
-            maxChunkSizeNode.InnerText = _maxChunkSize.ToString(CultureInfo.InvariantCulture);
-            root.AppendChild(maxChunkSizeNode);
-
-            var maxChunkItemCountNode = document.CreateElement("MaxChunkItemCount");
-            maxChunkItemCountNode.InnerText = _maxChunkItemCount.ToString(CultureInfo.InvariantCulture);
-            root.AppendChild(maxChunkItemCountNode);
-
-            var redundentNodesPerLocation = document.CreateElement("RedundentNodesPerLocation");
-            redundentNodesPerLocation.InnerText = _redundentNodesPerLocation.ToString(CultureInfo.InvariantCulture);
-            root.AppendChild(redundentNodesPerLocation);
+            WriteString(document, "ConnectionString", _connectionString, root);
+            WriteInt32(document, "Port", _port, root);
+            WriteInt32(document, "WebInterfacePort", _webInterfacePort, root);
+            WriteInt32(document, "MaxChunkSize", _maxChunkSize, root);
+            WriteInt32(document, "MaxChunkItemCount", _maxChunkItemCount, root);
+            WriteInt32(document, "RedundentNodesPerLocation", _redundentNodesPerLocation, root);
         }
     }
 }

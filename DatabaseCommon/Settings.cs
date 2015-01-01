@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Globalization;
+using System.IO;
 using System.Text;
 using System.Xml;
 
@@ -46,6 +47,71 @@ namespace Database.Common
 
         protected abstract void Load(XmlNode settings);
 
+        protected bool ReadBoolean(XmlNode parent, string name, bool defaultValue)
+        {
+            var value = ReadString(parent, name, string.Empty);
+            if (!string.IsNullOrEmpty(value))
+            {
+                bool result;
+                if (bool.TryParse(value, out result))
+                {
+                    return result;
+                }
+
+                Logger.Log("Could not convert the value of " + name + " to a boolean, using the default value.");
+            }
+
+            return defaultValue;
+        }
+
+        protected int ReadInt32(XmlNode parent, string name, int defaultValue)
+        {
+            var value = ReadString(parent, name, string.Empty);
+            if (!string.IsNullOrEmpty(value))
+            {
+                int result;
+                if (int.TryParse(value, out result))
+                {
+                    return result;
+                }
+
+                Logger.Log("Could not convert the value of " + name + " to an int, using the default value.");
+            }
+
+            return defaultValue;
+        }
+
+        protected string ReadString(XmlNode parent, string name, string defaultValue)
+        {
+            var node = parent.SelectSingleNode(name);
+            if (node != null)
+            {
+                return node.InnerText;
+            }
+
+            Logger.Log("Could not load setting " + name + ", using the default value.");
+            return defaultValue;
+        }
+
         protected abstract void Save(XmlDocument document, XmlNode root);
+
+        protected XmlNode WriteBoolean(XmlDocument document, string name, bool data, XmlNode parent)
+        {
+            return WriteString(document, name, data.ToString(CultureInfo.InvariantCulture), parent);
+        }
+
+        protected XmlNode WriteInt32(XmlDocument document, string name, int data, XmlNode parent)
+        {
+            return WriteString(document, name, data.ToString(CultureInfo.InvariantCulture), parent);
+        }
+
+        protected XmlNode WriteString(XmlDocument document, string name, string data, XmlNode parent)
+        {
+            var node = document.CreateElement(name);
+            node.InnerText = data;
+            parent.AppendChild(node);
+
+            return node;
+        }
     }
 }
