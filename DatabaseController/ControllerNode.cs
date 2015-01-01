@@ -1,5 +1,6 @@
 ﻿using Database.Common;
 using Database.Common.Messages;
+using Database.Query;
 using Database.Storage;
 using System.Collections.Generic;
 using System.Threading;
@@ -117,15 +118,29 @@ namespace Database.Controller
                         {
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
                             RenameConnection(message.Address, nodeDef);
+                            Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
                             Message response = new Message(message, new JoinSuccess(_primary), false);
                             response.Address = nodeDef;
                             SendMessage(response);
-                            Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
                         }
 
                         break;
 
                     case NodeType.Query:
+                        QueryNodeSettings queryJoinSettings = new QueryNodeSettings(joinAttemptData.Settings);
+                        if (queryJoinSettings.ConnectionString != _settings.ConnectionString)
+                        {
+                            SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
+                        }
+                        else
+                        {
+                            NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
+                            RenameConnection(message.Address, nodeDef);
+                            Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
+                            Message response = new Message(message, new JoinSuccess(_primary), false);
+                            response.Address = nodeDef;
+                            SendMessage(response);
+                        }
                         break;
 
                     case NodeType.Storage:
@@ -138,10 +153,10 @@ namespace Database.Controller
                         {
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
                             RenameConnection(message.Address, nodeDef);
+                            Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
                             Message response = new Message(message, new JoinSuccess(_primary), false);
                             response.Address = nodeDef;
                             SendMessage(response);
-                            Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
                         }
 
                         break;
