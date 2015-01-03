@@ -5,8 +5,15 @@ using System.Xml;
 
 namespace Database.Common
 {
+    /// <summary>
+    /// A base class for managing and loading settings.
+    /// </summary>
     public abstract class Settings
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Settings"/> class.
+        /// </summary>
+        /// <param name="xml">The xml text to load from.</param>
         public Settings(string xml)
         {
             using (StringReader xmlStream = new StringReader(xml))
@@ -18,10 +25,14 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Settings"/> class.
+        /// </summary>
         public Settings()
         {
         }
 
+        /// <inheritdoc />
         public override string ToString()
         {
             XmlDocument document = new XmlDocument();
@@ -45,8 +56,19 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// Loads settings from the root xml node.
+        /// </summary>
+        /// <param name="settings">The root xml node to read from.</param>
         protected abstract void Load(XmlNode settings);
 
+        /// <summary>
+        /// Reads a boolean from a node.
+        /// </summary>
+        /// <param name="parent">The parent of the node to read from.</param>
+        /// <param name="name">The node to read from.</param>
+        /// <param name="defaultValue">The default value should an error occur, or it doesn't exist.</param>
+        /// <returns>The value read from the node.</returns>
         protected bool ReadBoolean(XmlNode parent, string name, bool defaultValue)
         {
             var value = ReadString(parent, name, string.Empty);
@@ -64,6 +86,13 @@ namespace Database.Common
             return defaultValue;
         }
 
+        /// <summary>
+        /// Reads an integer from a node.
+        /// </summary>
+        /// <param name="parent">The parent of the node to read from.</param>
+        /// <param name="name">The node to read from.</param>
+        /// <param name="defaultValue">The default value should an error occur, or it doesn't exist.</param>
+        /// <returns>The value read from the node.</returns>
         protected int ReadInt32(XmlNode parent, string name, int defaultValue)
         {
             var value = ReadString(parent, name, string.Empty);
@@ -81,6 +110,13 @@ namespace Database.Common
             return defaultValue;
         }
 
+        /// <summary>
+        /// Reads a string from a node.
+        /// </summary>
+        /// <param name="parent">The parent of the node to read from.</param>
+        /// <param name="name">The node to read from.</param>
+        /// <param name="defaultValue">The default value should an error occur, or it doesn't exist.</param>
+        /// <returns>The value read from the node.</returns>
         protected string ReadString(XmlNode parent, string name, string defaultValue)
         {
             var node = parent.SelectSingleNode(name);
@@ -93,18 +129,47 @@ namespace Database.Common
             return defaultValue;
         }
 
+        /// <summary>
+        /// Saves the settings to a document with the given root node.
+        /// </summary>
+        /// <param name="document">The document to write to.</param>
+        /// <param name="root">The root node of the document.</param>
         protected abstract void Save(XmlDocument document, XmlNode root);
 
+        /// <summary>
+        /// Writes a boolean to a node in the document.
+        /// </summary>
+        /// <param name="document">The document being written to.</param>
+        /// <param name="name">The name of the node.</param>
+        /// <param name="data">The boolean being written.</param>
+        /// <param name="parent">The parent node to attach the written node to.</param>
+        /// <returns>The node that was written.</returns>
         protected XmlNode WriteBoolean(XmlDocument document, string name, bool data, XmlNode parent)
         {
             return WriteString(document, name, data.ToString(CultureInfo.InvariantCulture), parent);
         }
 
+        /// <summary>
+        /// Writes an integer to a node in the document.
+        /// </summary>
+        /// <param name="document">The document being written to.</param>
+        /// <param name="name">The name of the node.</param>
+        /// <param name="data">The integer being written.</param>
+        /// <param name="parent">The parent node to attach the written node to.</param>
+        /// <returns>The node that was written.</returns>
         protected XmlNode WriteInt32(XmlDocument document, string name, int data, XmlNode parent)
         {
             return WriteString(document, name, data.ToString(CultureInfo.InvariantCulture), parent);
         }
 
+        /// <summary>
+        /// Writes a string to a node in the document.
+        /// </summary>
+        /// <param name="document">The document being written to.</param>
+        /// <param name="name">The name of the node.</param>
+        /// <param name="data">The string being written.</param>
+        /// <param name="parent">The parent node to attach the written node to.</param>
+        /// <returns>The node that was written.</returns>
         protected XmlNode WriteString(XmlDocument document, string name, string data, XmlNode parent)
         {
             var node = document.CreateElement(name);

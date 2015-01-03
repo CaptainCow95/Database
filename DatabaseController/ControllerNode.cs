@@ -7,23 +7,43 @@ using System.Threading;
 
 namespace Database.Controller
 {
+    /// <summary>
+    /// Represents a controller node.
+    /// </summary>
     public class ControllerNode : Node
     {
+        /// <summary>
+        /// A value indicating whether this node is the primary controller.
+        /// </summary>
         private bool _primary = false;
+
+        /// <summary>
+        /// The <see cref="NodeDefinition"/> that defines this node.
+        /// </summary>
         private NodeDefinition _self;
+
+        /// <summary>
+        /// The settings of the controller node.
+        /// </summary>
         private ControllerNodeSettings _settings;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ControllerNode"/> class.
+        /// </summary>
+        /// <param name="settings">The settings to use.</param>
         public ControllerNode(ControllerNodeSettings settings)
             : base(settings.Port)
         {
             _settings = settings;
         }
 
+        /// <inheritdoc />
         public override NodeDefinition Self
         {
             get { return _self; }
         }
 
+        /// <inheritdoc />
         public override void Run()
         {
             BeforeStart();
@@ -88,6 +108,7 @@ namespace Database.Controller
             AfterStop();
         }
 
+        /// <inheritdoc />
         protected override void MessageReceived(Message message)
         {
             if (message.Data is JoinAttempt)
@@ -109,7 +130,7 @@ namespace Database.Controller
                         {
                             SendMessage(new Message(message, new JoinFailure("Max chunk sizes do not match."), false));
                         }
-                        else if (joinSettings.RedundentNodesPerLocation != _settings.RedundentNodesPerLocation)
+                        else if (joinSettings.RedundantNodesPerLocation != _settings.RedundantNodesPerLocation)
                         {
                             SendMessage(new Message(message,
                                 new JoinFailure("Redundent nodes per location do not match."), false));
@@ -141,6 +162,7 @@ namespace Database.Controller
                             response.Address = nodeDef;
                             SendMessage(response);
                         }
+
                         break;
 
                     case NodeType.Storage:

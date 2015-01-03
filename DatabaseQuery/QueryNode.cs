@@ -5,22 +5,38 @@ using System.Threading;
 
 namespace Database.Query
 {
+    /// <summary>
+    /// Represents a query node.
+    /// </summary>
     public class QueryNode : Node
     {
+        /// <summary>
+        /// The <see cref="NodeDefinition"/> that represents the primary controller.
+        /// </summary>
         private NodeDefinition _primaryController;
+
+        /// <summary>
+        /// The settings of the query node.
+        /// </summary>
         private QueryNodeSettings _settings;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="QueryNode"/> class.
+        /// </summary>
+        /// <param name="settings">The settings to use.</param>
         public QueryNode(QueryNodeSettings settings)
             : base(settings.Port)
         {
             _settings = settings;
         }
 
+        /// <inheritdoc />
         public override NodeDefinition Self
         {
             get { return new NodeDefinition(_settings.NodeName, _settings.Port); }
         }
 
+        /// <inheritdoc />
         public override void Run()
         {
             BeforeStart();
@@ -63,6 +79,7 @@ namespace Database.Query
             AfterStop();
         }
 
+        /// <inheritdoc />
         protected override void MessageReceived(Message message)
         {
         }

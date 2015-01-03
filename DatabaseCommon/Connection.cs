@@ -26,23 +26,33 @@ namespace Database.Common
         public TcpClient Client { get; private set; }
 
         /// <summary>
-        /// Gets or sets the last time the connection was active.
+        /// Gets the last time the connection was active.
         /// </summary>
         public DateTime LastActiveTime { get; private set; }
 
+        /// <summary>
+        /// Gets the node type of the connection.
+        /// </summary>
         public NodeType NodeType { get; private set; }
 
         /// <summary>
-        /// Gets or sets the current status of the connection.
+        /// Gets the current status of the connection.
         /// </summary>
         public ConnectionStatus Status { get; private set; }
 
+        /// <summary>
+        /// Marks the connection as established.
+        /// </summary>
+        /// <param name="type">The node type that the connection is to.</param>
         public void ConnectionEstablished(NodeType type)
         {
             NodeType = type;
             Status = ConnectionStatus.Connected;
         }
 
+        /// <summary>
+        /// Resets the last active time to the current time.
+        /// </summary>
         public void ResetLastActiveTime()
         {
             LastActiveTime = DateTime.UtcNow;

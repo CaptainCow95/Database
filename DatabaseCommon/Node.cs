@@ -69,6 +69,9 @@ namespace Database.Common
         /// </summary>
         private TcpListener _connectionListener;
 
+        /// <summary>
+        /// The thread sending out heartbeats.
+        /// </summary>
         private Thread _heartbeatThread;
 
         /// <summary>
@@ -103,13 +106,23 @@ namespace Database.Common
             get { return _running; }
         }
 
+        /// <summary>
+        /// Gets the node definition represents the current node.
+        /// </summary>
         public abstract NodeDefinition Self { get; }
 
+        /// <summary>
+        /// Gets the current connections.
+        /// </summary>
         protected Dictionary<NodeDefinition, Connection> Connections
         {
             get { return _connections; }
         }
 
+        /// <summary>
+        /// Gets a list of the connected nodes.
+        /// </summary>
+        /// <returns>A readonly list of the connected nodes.</returns>
         public ReadOnlyCollection<Tuple<NodeDefinition, NodeType>> GetConnectedNodes()
         {
             List<Tuple<NodeDefinition, NodeType>> list = new List<Tuple<NodeDefinition, NodeType>>();
@@ -167,24 +180,33 @@ namespace Database.Common
             _heartbeatThread.Start();
         }
 
+        /// <summary>
+        /// Called when a message a received.
+        /// </summary>
+        /// <param name="message">The message that was received.</param>
         protected abstract void MessageReceived(Message message);
 
-        protected void RenameConnection(NodeDefinition oldName, NodeDefinition newName)
+        /// <summary>
+        /// Renames a connection.
+        /// </summary>
+        /// <param name="currentName">The current name of the connection.</param>
+        /// <param name="newName">The new name of the connection.</param>
+        protected void RenameConnection(NodeDefinition currentName, NodeDefinition newName)
         {
             // MAKE SURE THIS LOCK ORDER IS THE SAME EVERYWHERE
             lock (_connections)
             {
                 lock (_messagesReceived)
                 {
-                    if (_connections.ContainsKey(oldName) && !_connections.ContainsKey(newName))
+                    if (_connections.ContainsKey(currentName) && !_connections.ContainsKey(newName))
                     {
-                        _connections.Add(newName, _connections[oldName]);
-                        _connections.Remove(oldName);
+                        _connections.Add(newName, _connections[currentName]);
+                        _connections.Remove(currentName);
 
-                        if (_messagesReceived.ContainsKey(oldName))
+                        if (_messagesReceived.ContainsKey(currentName))
                         {
-                            _messagesReceived.Add(newName, _messagesReceived[oldName]);
-                            _messagesReceived.Remove(oldName);
+                            _messagesReceived.Add(newName, _messagesReceived[currentName]);
+                            _messagesReceived.Remove(currentName);
                         }
                     }
                 }
@@ -204,6 +226,10 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// Called when a message is received.
+        /// </summary>
+        /// <param name="message">The message that was received.</param>
         private void MessageReceivedHandler(object message)
         {
             MessageReceived((Message)message);
@@ -320,6 +346,9 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// The run method of the heartbeat sending thread.
+        /// </summary>
         private void RunHeartbeat()
         {
             for (int i = 0; i < HeartbeatInterval && _running; ++i)
@@ -430,16 +459,14 @@ namespace Database.Common
                                     if (!_connections.ContainsKey(message.Address))
                                     {
                                         TcpClient client = new TcpClient(message.Address.Hostname, message.Address.Port);
-                                        _connections.Add(message.Address,
-                                            new Connection(client));
+                                        _connections.Add(message.Address, new Connection(client));
                                     }
 
                                     if (message.WaitingForResponse)
                                     {
                                         lock (_waitingForResponses)
                                         {
-                                            _waitingForResponses.Add(message.ID,
-                                                new Tuple<Message, DateTime>(message, DateTime.UtcNow));
+                                            _waitingForResponses.Add(message.ID, new Tuple<Message, DateTime>(message, DateTime.UtcNow));
                                         }
                                     }
 
@@ -473,6 +500,10 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// Sends a heartbeat to the specified address.
+        /// </summary>
+        /// <param name="address">The address to send the heartbeat to.</param>
         private void SendHeartbeat(object address)
         {
             SendMessage(new Message((NodeDefinition)address, new Heartbeat(), false));

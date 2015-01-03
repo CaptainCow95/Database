@@ -23,6 +23,9 @@ namespace Database.Common
         /// </summary>
         private NodeDefinition _address;
 
+        /// <summary>
+        /// The data contained in the message.
+        /// </summary>
         private BaseMessageData _data;
 
         /// <summary>
@@ -107,6 +110,9 @@ namespace Database.Common
             set { _address = value; }
         }
 
+        /// <summary>
+        /// Gets the data contained in the message.
+        /// </summary>
         public BaseMessageData Data
         {
             get { return _data; }

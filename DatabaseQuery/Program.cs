@@ -3,11 +3,20 @@ using System.IO;
 
 namespace Database.Query
 {
+    /// <summary>
+    /// The main query node program.
+    /// </summary>
     public class Program
     {
+        /// <summary>
+        /// The query node this program runs.
+        /// </summary>
         private static QueryNode _node;
 
-        private static void Main(string[] args)
+        /// <summary>
+        /// The main method of the program.
+        /// </summary>
+        private static void Main()
         {
             Logger.Init(string.Empty, "Query");
 

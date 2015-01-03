@@ -8,10 +8,20 @@ using System.Text;
 
 namespace Database.Controller
 {
+    /// <summary>
+    /// The main controller node program.
+    /// </summary>
     public class Program
     {
+        /// <summary>
+        /// The controller node this program runs.
+        /// </summary>
         private static ControllerNode _node;
 
+        /// <summary>
+        /// Creates the main page.
+        /// </summary>
+        /// <returns>The html of the main page.</returns>
         private static string CreateMainPage()
         {
             if (_node != null)
@@ -64,11 +74,19 @@ namespace Database.Controller
             return "<html><body>Node is not available at this time.</body></html>";
         }
 
+        /// <summary>
+        /// Called when an unhandled exception occurs in order to log it.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The event arguments.</param>
         private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             Logger.Log("Unhandled exception: " + ((Exception)e.ExceptionObject).Message + "\nStacktrace: " + ((Exception)e.ExceptionObject).StackTrace);
         }
 
+        /// <summary>
+        /// The main method of the program.
+        /// </summary>
         private static void Main()
         {
             Logger.Init(string.Empty, "controller");
@@ -95,6 +113,12 @@ namespace Database.Controller
             WebInterface.Stop();
         }
 
+        /// <summary>
+        /// Called when a request is made to the web interface.
+        /// </summary>
+        /// <param name="page">The page that was requested.</param>
+        /// <param name="queryString">The query string of the request.</param>
+        /// <returns>The webpage that was requested.</returns>
         private static string WebInterfaceRequestReceived(string page, NameValueCollection queryString)
         {
             switch (page)

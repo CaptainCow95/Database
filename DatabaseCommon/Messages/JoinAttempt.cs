@@ -2,13 +2,38 @@
 
 namespace Database.Common.Messages
 {
+    /// <summary>
+    /// A message to attempt to join a network.
+    /// </summary>
     public class JoinAttempt : BaseMessageData
     {
+        /// <summary>
+        /// The name of the node.
+        /// </summary>
         private string _name;
+
+        /// <summary>
+        /// The port of the node.
+        /// </summary>
         private int _port;
+
+        /// <summary>
+        /// The settings of the node.
+        /// </summary>
         private string _settings;
+
+        /// <summary>
+        /// The type of the node.
+        /// </summary>
         private NodeType _type;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="JoinAttempt"/> class.
+        /// </summary>
+        /// <param name="type">The type of the node.</param>
+        /// <param name="name">The name of the node.</param>
+        /// <param name="port">The port of the node.</param>
+        /// <param name="settings">The settings of the node.</param>
         public JoinAttempt(NodeType type, string name, int port, string settings)
         {
             _type = type;
@@ -17,6 +42,11 @@ namespace Database.Common.Messages
             _settings = settings;
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="JoinAttempt"/> class.
+        /// </summary>
+        /// <param name="data">The data to read from.</param>
+        /// <param name="index">The index at which to start reading from.</param>
         internal JoinAttempt(byte[] data, int index)
         {
             _type = (NodeType)Enum.ToObject(typeof(NodeType), ByteArrayHelper.ToInt32(data, ref index));
@@ -25,14 +55,39 @@ namespace Database.Common.Messages
             _settings = ByteArrayHelper.ToString(data, ref index);
         }
 
-        public string Name { get { return _name; } }
+        /// <summary>
+        /// Gets the name of the node.
+        /// </summary>
+        public string Name
+        {
+            get { return _name; }
+        }
 
-        public int Port { get { return _port; } }
+        /// <summary>
+        /// Gets the port of the node.
+        /// </summary>
+        public int Port
+        {
+            get { return _port; }
+        }
 
-        public string Settings { get { return _settings; } }
+        /// <summary>
+        /// Gets the settings of the node.
+        /// </summary>
+        public string Settings
+        {
+            get { return _settings; }
+        }
 
-        public NodeType Type { get { return _type; } }
+        /// <summary>
+        /// Gets the type of the node.
+        /// </summary>
+        public NodeType Type
+        {
+            get { return _type; }
+        }
 
+        /// <inheritdoc />
         public override byte[] EncodeInternal()
         {
             byte[] typeBytes = ByteArrayHelper.ToBytes((int)_type);
@@ -43,6 +98,7 @@ namespace Database.Common.Messages
             return ByteArrayHelper.Combine(typeBytes, nameBytes, portBytes, settingsBytes);
         }
 
+        /// <inheritdoc />
         protected override int GetMessageTypeId()
         {
             return (int)MessageType.JoinAttempt;

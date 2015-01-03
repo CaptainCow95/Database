@@ -3,11 +3,20 @@ using System.IO;
 
 namespace Database.Storage
 {
+    /// <summary>
+    /// The main storage node program.
+    /// </summary>
     public class Program
     {
+        /// <summary>
+        /// The storage node this program runs.
+        /// </summary>
         private static StorageNode _node;
 
-        private static void Main(string[] args)
+        /// <summary>
+        /// The main method of the program.
+        /// </summary>
+        private static void Main()
         {
             Logger.Init(string.Empty, "Storage");
 

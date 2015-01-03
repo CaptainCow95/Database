@@ -5,22 +5,38 @@ using System.Threading;
 
 namespace Database.Storage
 {
+    /// <summary>
+    /// Represents a storage node.
+    /// </summary>
     public class StorageNode : Node
     {
+        /// <summary>
+        /// The <see cref="NodeDefinition"/> that represents the primary controller.
+        /// </summary>
         private NodeDefinition _primaryController;
+
+        /// <summary>
+        /// The settings of the storage node.
+        /// </summary>
         private StorageNodeSettings _settings;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="StorageNode"/> class.
+        /// </summary>
+        /// <param name="settings">The settings to use.</param>
         public StorageNode(StorageNodeSettings settings)
             : base(settings.Port)
         {
             _settings = settings;
         }
 
+        /// <inheritdoc />
         public override NodeDefinition Self
         {
             get { return new NodeDefinition(_settings.NodeName, _settings.Port); }
         }
 
+        /// <inheritdoc />
         public override void Run()
         {
             BeforeStart();
@@ -63,6 +79,7 @@ namespace Database.Storage
             AfterStop();
         }
 
+        /// <inheritdoc />
         protected override void MessageReceived(Message message)
         {
         }
