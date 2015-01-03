@@ -9,34 +9,34 @@ namespace Database.Storage
     public class StorageNodeSettings : Settings
     {
         /// <summary>
-        /// A value indicating whether this node can become a primary storage node.
+        /// The default value indicating whether this node can become a primary storage node.
         /// </summary>
-        private bool _canBecomePrimary = true;
+        private const bool CanBecomePrimaryDefault = true;
 
         /// <summary>
-        /// The connection string.
+        /// The default connection string.
         /// </summary>
-        private string _connectionString;
+        private const string ConnectionStringDefault = "";
 
         /// <summary>
-        /// The location.
+        /// The default location.
         /// </summary>
-        private string _location = string.Empty;
+        private const string LocationDefault = "";
 
         /// <summary>
-        /// The node name.
+        /// The default node name.
         /// </summary>
-        private string _nodeName = "localhost";
+        private const string NodeNameDefault = "localhost";
 
         /// <summary>
-        /// The port of the node.
+        /// The default port.
         /// </summary>
-        private int _port = 12345;
+        private const int PortDefault = 5100;
 
         /// <summary>
-        /// The weight.
+        /// The default weight.
         /// </summary>
-        private int _weight = 1;
+        private const int WeightDefault = 1;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="StorageNodeSettings"/> class.
@@ -53,77 +53,65 @@ namespace Database.Storage
         public StorageNodeSettings()
             : base()
         {
+            CanBecomePrimary = CanBecomePrimaryDefault;
+            ConnectionString = ConnectionStringDefault;
+            Location = LocationDefault;
+            NodeName = NodeNameDefault;
+            Port = PortDefault;
+            Weight = WeightDefault;
         }
 
         /// <summary>
         /// Gets a value indicating whether this node can become a primary storage node.
         /// </summary>
-        public bool CanBecomePrimary
-        {
-            get { return _canBecomePrimary; }
-        }
+        public bool CanBecomePrimary { get; private set; }
 
         /// <summary>
         /// Gets the connection string.
         /// </summary>
-        public string ConnectionString
-        {
-            get { return _connectionString; }
-        }
+        public string ConnectionString { get; private set; }
 
         /// <summary>
         /// Gets the location.
         /// </summary>
-        public string Location
-        {
-            get { return _location; }
-        }
+        public string Location { get; private set; }
 
         /// <summary>
         /// Gets the node name.
         /// </summary>
-        public string NodeName
-        {
-            get { return _nodeName; }
-        }
+        public string NodeName { get; private set; }
 
         /// <summary>
         /// Gets the port.
         /// </summary>
-        public int Port
-        {
-            get { return _port; }
-        }
+        public int Port { get; private set; }
 
         /// <summary>
         /// Gets the weight.
         /// </summary>
         /// <remarks>This determines how much this node stores in relation to other nodes.</remarks>
-        public int Weight
-        {
-            get { return _weight; }
-        }
+        public int Weight { get; private set; }
 
         /// <inheritdoc />
         protected override void Load(XmlNode settings)
         {
-            _connectionString = ReadString(settings, "ConnectionString", _connectionString);
-            _nodeName = ReadString(settings, "NodeName", _nodeName);
-            _port = ReadInt32(settings, "Port", _port);
-            _location = ReadString(settings, "Location", _location);
-            _canBecomePrimary = ReadBoolean(settings, "CanBecomePrimary", _canBecomePrimary);
-            _weight = ReadInt32(settings, "Weight", _weight);
+            ConnectionString = ReadString(settings, "ConnectionString", ConnectionStringDefault);
+            NodeName = ReadString(settings, "NodeName", NodeNameDefault);
+            Port = ReadInt32(settings, "Port", PortDefault);
+            Location = ReadString(settings, "Location", LocationDefault);
+            CanBecomePrimary = ReadBoolean(settings, "CanBecomePrimary", CanBecomePrimaryDefault);
+            Weight = ReadInt32(settings, "Weight", WeightDefault);
         }
 
         /// <inheritdoc />
         protected override void Save(XmlDocument document, XmlNode root)
         {
-            WriteString(document, "ConnectionString", _connectionString, root);
-            WriteString(document, "NodeName", _nodeName, root);
-            WriteInt32(document, "Port", _port, root);
-            WriteString(document, "Location", _location, root);
-            WriteBoolean(document, "CanBecomePrimary", _canBecomePrimary, root);
-            WriteInt32(document, "Weight", _weight, root);
+            WriteString(document, "ConnectionString", ConnectionString, root);
+            WriteString(document, "NodeName", NodeName, root);
+            WriteInt32(document, "Port", Port, root);
+            WriteString(document, "Location", Location, root);
+            WriteBoolean(document, "CanBecomePrimary", CanBecomePrimary, root);
+            WriteInt32(document, "Weight", Weight, root);
         }
     }
 }

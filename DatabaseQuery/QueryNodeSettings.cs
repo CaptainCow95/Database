@@ -9,19 +9,19 @@ namespace Database.Query
     public class QueryNodeSettings : Settings
     {
         /// <summary>
-        /// The connection string.
+        /// The default connection string.
         /// </summary>
-        private string _connectionString;
+        private const string ConnectionStringDefault = "";
 
         /// <summary>
-        /// The name of the node.
+        /// The default node name.
         /// </summary>
-        private string _nodeName = "localhost";
+        private const string NodeNameDefault = "localhost";
 
         /// <summary>
-        /// The port of the node.
+        /// The default port.
         /// </summary>
-        private int _port = 12345;
+        private const int PortDefault = 5200;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="QueryNodeSettings"/> class.
@@ -38,46 +38,40 @@ namespace Database.Query
         public QueryNodeSettings()
             : base()
         {
+            ConnectionString = ConnectionStringDefault;
+            NodeName = NodeNameDefault;
+            Port = PortDefault;
         }
 
         /// <summary>
         /// Gets the connection string.
         /// </summary>
-        public string ConnectionString
-        {
-            get { return _connectionString; }
-        }
+        public string ConnectionString { get; private set; }
 
         /// <summary>
         /// Gets the node name.
         /// </summary>
-        public string NodeName
-        {
-            get { return _nodeName; }
-        }
+        public string NodeName { get; private set; }
 
         /// <summary>
         /// Gets the port.
         /// </summary>
-        public int Port
-        {
-            get { return _port; }
-        }
+        public int Port { get; private set; }
 
         /// <inheritdoc />
         protected override void Load(XmlNode settings)
         {
-            _connectionString = ReadString(settings, "ConnectionString", _connectionString);
-            _nodeName = ReadString(settings, "NodeName", _nodeName);
-            _port = ReadInt32(settings, "Port", _port);
+            ConnectionString = ReadString(settings, "ConnectionString", ConnectionStringDefault);
+            NodeName = ReadString(settings, "NodeName", NodeNameDefault);
+            Port = ReadInt32(settings, "Port", PortDefault);
         }
 
         /// <inheritdoc />
         protected override void Save(XmlDocument document, XmlNode root)
         {
-            WriteString(document, "ConnectionString", _connectionString, root);
-            WriteString(document, "NodeName", _nodeName, root);
-            WriteInt32(document, "Port", _port, root);
+            WriteString(document, "ConnectionString", ConnectionString, root);
+            WriteString(document, "NodeName", NodeName, root);
+            WriteInt32(document, "Port", Port, root);
         }
     }
 }
