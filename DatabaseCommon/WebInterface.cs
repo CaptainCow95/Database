@@ -71,6 +71,7 @@ namespace Database.Common
             catch
             {
                 // If the thread is already dead or interrupted, don't worry about it, we are shutting down anyway.
+                Logger.Log("Error during joining of web interface thread.");
             }
         }
 
