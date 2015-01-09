@@ -57,7 +57,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ControllerNode.cs" />
-    <Compile Include="ControllerNodeSettings.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -69,14 +68,6 @@
     <ProjectReference Include="..\DatabaseCommon\DatabaseCommon.csproj">
       <Project>{4cbd0b00-8043-46c9-8f0d-3f755a3fe4c9}</Project>
       <Name>DatabaseCommon</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\DatabaseQuery\DatabaseQuery.csproj">
-      <Project>{95eecefb-0ce7-4cf7-b7b8-636f43390389}</Project>
-      <Name>DatabaseQuery</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\DatabaseStorage\DatabaseStorage.csproj">
-      <Project>{6bf857c6-6efe-4ed2-b552-21886984f424}</Project>
-      <Name>DatabaseStorage</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

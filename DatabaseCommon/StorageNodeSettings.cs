@@ -1,7 +1,7 @@
 ﻿using Database.Common;
 using System.Xml;
 
-namespace Database.Storage
+namespace Database.Common
 {
     /// <summary>
     /// A class for managing and loading storage node settings.

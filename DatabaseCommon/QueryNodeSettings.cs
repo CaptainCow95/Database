@@ -1,7 +1,7 @@
 ﻿using Database.Common;
 using System.Xml;
 
-namespace Database.Query
+namespace Database.Common
 {
     /// <summary>
     /// A class for managing and loading query node settings.
