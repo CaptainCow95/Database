@@ -18,8 +18,6 @@ namespace Database.Storage
         /// </summary>
         private static void Main()
         {
-            Logger.Init(string.Empty, "Storage");
-
             StorageNodeSettings settings;
             if (File.Exists("config.xml"))
             {
@@ -27,13 +25,17 @@ namespace Database.Storage
             }
             else
             {
-                Logger.Log("\"config.xml\" not found, creating with the defaults.");
+                Logger.Log("\"config.xml\" not found, creating with the defaults.", LogLevel.Warning);
                 settings = new StorageNodeSettings();
                 File.WriteAllText("config.xml", settings.ToString());
             }
 
+            Logger.Init(string.Empty, "Storage", settings.LogLevel);
+
             _node = new StorageNode(settings);
             _node.Run();
+
+            Logger.Shutdown();
         }
     }
 }

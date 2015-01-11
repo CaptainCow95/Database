@@ -49,7 +49,7 @@ namespace Database.Query
                 {
                     if (message.Response.Data is JoinFailure)
                     {
-                        Logger.Log("Failed to join controllers: " + ((JoinFailure)message.Response.Data).Reason);
+                        Logger.Log("Failed to join controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
                         AfterStop();
                         return;
                     }

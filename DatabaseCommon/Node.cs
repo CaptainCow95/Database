@@ -282,7 +282,7 @@ namespace Database.Common
         {
             Message message = new Message(address, data);
 
-            Logger.Log("Received message of type " + message.Data.GetType() + " from " + message.Address.ConnectionName);
+            Logger.Log("Received message of type " + message.Data.GetType() + " from " + message.Address.ConnectionName, LogLevel.Debug);
 
             // If the message is in response to another message, then don't send an event.
             // Also, if the message is a Heartbeat, we don't need to do anything,
@@ -328,6 +328,7 @@ namespace Database.Common
 
                     foreach (var item in responsesToRemove)
                     {
+                        Logger.Log("Timeout while waiting for message response from " + _waitingForResponses[item].Item1.Address, LogLevel.Info);
                         _waitingForResponses.Remove(item);
                     }
                 }
@@ -348,6 +349,7 @@ namespace Database.Common
                     {
                         foreach (var connection in connectionsToRemove)
                         {
+                            Logger.Log("Connection lost to " + connection.ConnectionName, LogLevel.Info);
                             _connections.Remove(connection);
                             _messagesReceived.Remove(connection);
                         }

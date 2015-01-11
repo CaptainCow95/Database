@@ -91,7 +91,7 @@ namespace Database.Controller
         /// <param name="e">The event arguments.</param>
         private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
-            Logger.Log("Unhandled exception: " + ((Exception)e.ExceptionObject).Message + "\nStacktrace: " + ((Exception)e.ExceptionObject).StackTrace);
+            Logger.Log("Unhandled exception: " + ((Exception)e.ExceptionObject).Message + "\nStacktrace: " + ((Exception)e.ExceptionObject).StackTrace, LogLevel.Error);
         }
 
         /// <summary>
@@ -99,8 +99,6 @@ namespace Database.Controller
         /// </summary>
         private static void Main()
         {
-            Logger.Init(string.Empty, "controller");
-
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
             ControllerNodeSettings settings;
@@ -110,10 +108,12 @@ namespace Database.Controller
             }
             else
             {
-                Logger.Log("\"config.xml\" not found, creating with the defaults.");
+                Logger.Log("\"config.xml\" not found, creating with the defaults.", LogLevel.Warning);
                 settings = new ControllerNodeSettings();
                 File.WriteAllText("config.xml", settings.ToString());
             }
+
+            Logger.Init(string.Empty, "controller", settings.LogLevel);
 
             WebInterface.Start(settings.WebInterfacePort, WebInterfaceRequestReceived);
 
@@ -121,6 +121,8 @@ namespace Database.Controller
             _node.Run();
 
             WebInterface.Stop();
+
+            Logger.Shutdown();
         }
 
         /// <summary>

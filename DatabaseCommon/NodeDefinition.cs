@@ -134,7 +134,7 @@ namespace Database.Common
             catch
             {
                 // Something probably went wrong with the networking to figure out the hostnames, just return false.
-                Logger.Log("Could not get the host addresses of the host or the local machine.");
+                Logger.Log("Could not get the host addresses of the host or the local machine.", LogLevel.Error);
             }
 
             return false;

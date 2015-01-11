@@ -12,6 +12,8 @@ namespace Database.Common
         /// </summary>
         private const string ConnectionStringDefault = "";
 
+        private const LogLevel LogLevelDefault = LogLevel.Warning;
+
         /// <summary>
         /// The default node name.
         /// </summary>
@@ -40,12 +42,15 @@ namespace Database.Common
             ConnectionString = ConnectionStringDefault;
             NodeName = NodeNameDefault;
             Port = PortDefault;
+            LogLevel = LogLevelDefault;
         }
 
         /// <summary>
         /// Gets the connection string.
         /// </summary>
         public string ConnectionString { get; private set; }
+
+        public LogLevel LogLevel { get; private set; }
 
         /// <summary>
         /// Gets the node name.
@@ -63,6 +68,7 @@ namespace Database.Common
             ConnectionString = ReadString(settings, "ConnectionString", ConnectionStringDefault);
             NodeName = ReadString(settings, "NodeName", NodeNameDefault);
             Port = ReadInt32(settings, "Port", PortDefault);
+            LogLevel = ReadEnum<LogLevel>(settings, "LogLevel", LogLevelDefault);
         }
 
         /// <inheritdoc />
@@ -71,6 +77,7 @@ namespace Database.Common
             WriteString(document, "ConnectionString", ConnectionString, root);
             WriteString(document, "NodeName", NodeName, root);
             WriteInt32(document, "Port", Port, root);
+            WriteEnum<LogLevel>(document, "LogLevel", LogLevel, root);
         }
     }
 }

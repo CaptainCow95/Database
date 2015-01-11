@@ -71,7 +71,7 @@ namespace Database.Common
             catch
             {
                 // If the thread is already dead or interrupted, don't worry about it, we are shutting down anyway.
-                Logger.Log("Error during joining of web interface thread.");
+                Logger.Log("Error during joining of web interface thread.", LogLevel.Warning);
             }
         }
 
@@ -143,7 +143,7 @@ namespace Database.Common
             }
             catch (HttpListenerException)
             {
-                Logger.Log("Could not initiate web interface for all incoming connections, initiating for localhost only. Please run the program as administrator for web interface access from all incoming connections.");
+                Logger.Log("Could not initiate web interface for all incoming connections, initiating for localhost only. Please run the program as administrator for web interface access from all incoming connections.", LogLevel.Warning);
                 listener = new HttpListener();
                 listener.Prefixes.Add("http://localhost:" + _port + "/");
                 listener.Start();

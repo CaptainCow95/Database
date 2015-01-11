@@ -18,8 +18,6 @@ namespace Database.Query
         /// </summary>
         private static void Main()
         {
-            Logger.Init(string.Empty, "Query");
-
             QueryNodeSettings settings;
             if (File.Exists("config.xml"))
             {
@@ -27,13 +25,17 @@ namespace Database.Query
             }
             else
             {
-                Logger.Log("\"config.xml\" not found, creating with the defaults.");
+                Logger.Log("\"config.xml\" not found, creating with the defaults.", LogLevel.Warning);
                 settings = new QueryNodeSettings();
                 File.WriteAllText("config.xml", settings.ToString());
             }
 
+            Logger.Init(string.Empty, "Query", settings.LogLevel);
+
             _node = new QueryNode(settings);
             _node.Run();
+
+            Logger.Shutdown();
         }
     }
 }

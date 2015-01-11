@@ -1,5 +1,7 @@
-﻿using System.Globalization;
+﻿using System;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Xml;
 
@@ -80,7 +82,31 @@ namespace Database.Common
                     return result;
                 }
 
-                Logger.Log("Could not convert the value of " + name + " to a boolean, using the default value.");
+                Logger.Log("Could not convert the value of " + name + " to a boolean, using the default value.", LogLevel.Error);
+            }
+
+            return defaultValue;
+        }
+
+        protected T ReadEnum<T>(XmlNode parent, string name, T defaultValue)
+        {
+            var value = ReadString(parent, name, string.Empty);
+            try
+            {
+                T enumValue = (T)Enum.Parse(typeof(T), value);
+                if (Enum.IsDefined(typeof(T), enumValue))
+                {
+                    return enumValue;
+                }
+                else
+                {
+                    Logger.Log("\"" + value + "\" is not a valid option. Valid options are as follows: " +
+                               Enum.GetNames(typeof(T)).Aggregate((working, next) => working + ", " + next), LogLevel.Error);
+                }
+            }
+            catch
+            {
+                Logger.Log("Could not convert the value of " + name + " to a valid value, using the default value. Valid options are as follows: " + Enum.GetNames(typeof(T)).Aggregate((working, next) => working + ", " + next), LogLevel.Error);
             }
 
             return defaultValue;
@@ -104,7 +130,7 @@ namespace Database.Common
                     return result;
                 }
 
-                Logger.Log("Could not convert the value of " + name + " to an int, using the default value.");
+                Logger.Log("Could not convert the value of " + name + " to an int, using the default value.", LogLevel.Error);
             }
 
             return defaultValue;
@@ -125,7 +151,7 @@ namespace Database.Common
                 return node.InnerText;
             }
 
-            Logger.Log("Could not load setting " + name + ", using the default value.");
+            Logger.Log("Could not load setting " + name + ", using the default value.", LogLevel.Error);
             return defaultValue;
         }
 
@@ -147,6 +173,11 @@ namespace Database.Common
         protected XmlNode WriteBoolean(XmlDocument document, string name, bool data, XmlNode parent)
         {
             return WriteString(document, name, data.ToString(CultureInfo.InvariantCulture), parent);
+        }
+
+        protected XmlNode WriteEnum<T>(XmlDocument document, string name, T data, XmlNode parent)
+        {
+            return WriteString(document, name, Enum.GetName(typeof(T), data), parent);
         }
 
         /// <summary>

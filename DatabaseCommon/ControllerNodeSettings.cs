@@ -12,6 +12,8 @@ namespace Database.Common
         /// </summary>
         private const string ConnectionStringDefault = "";
 
+        private const LogLevel LogLevelDefault = LogLevel.Warning;
+
         /// <summary>
         /// The default maximum number of items in a chunk before they are split.
         /// </summary>
@@ -59,12 +61,15 @@ namespace Database.Common
             Port = PortDefault;
             RedundantNodesPerLocation = RedundantNodesPerLocationDefault;
             WebInterfacePort = WebInterfacePortDefault;
+            LogLevel = LogLevelDefault;
         }
 
         /// <summary>
         /// Gets the connection string.
         /// </summary>
         public string ConnectionString { get; private set; }
+
+        public LogLevel LogLevel { get; private set; }
 
         /// <summary>
         /// Gets the maximum number of items in a chunk before they are split.
@@ -100,6 +105,7 @@ namespace Database.Common
             MaxChunkSize = ReadInt32(settings, "MaxChunkSize", MaxChunkSizeDefault);
             MaxChunkItemCount = ReadInt32(settings, "MaxChunkItemCount", MaxChunkItemCountDefault);
             RedundantNodesPerLocation = ReadInt32(settings, "RedundantNodesPerLocation", RedundantNodesPerLocationDefault);
+            LogLevel = ReadEnum<LogLevel>(settings, "LogLevel", LogLevelDefault);
         }
 
         /// <inheritdoc />
@@ -111,6 +117,7 @@ namespace Database.Common
             WriteInt32(document, "MaxChunkSize", MaxChunkSize, root);
             WriteInt32(document, "MaxChunkItemCount", MaxChunkItemCount, root);
             WriteInt32(document, "RedundantNodesPerLocation", RedundantNodesPerLocation, root);
+            WriteEnum<LogLevel>(document, "LogLevel", LogLevel, root);
         }
     }
 }

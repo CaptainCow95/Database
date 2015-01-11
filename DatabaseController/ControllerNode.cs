@@ -68,7 +68,7 @@ namespace Database.Controller
 
             if (_self == null)
             {
-                Logger.Log("Could not find myself in the connection string.");
+                Logger.Log("Could not find myself in the connection string.", LogLevel.Error);
                 AfterStop();
                 return;
             }
@@ -87,7 +87,7 @@ namespace Database.Controller
                         if (message.Response.Data is JoinFailure)
                         {
                             Logger.Log("Failed to join other controllers: " +
-                                       ((JoinFailure)message.Response.Data).Reason);
+                                       ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
                             AfterStop();
                             return;
                         }
