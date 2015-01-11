@@ -18,6 +18,11 @@ namespace Database.Common.Messages
         private int _port;
 
         /// <summary>
+        /// A value indicating whether the joining node is the primary controller.
+        /// </summary>
+        private bool _primary;
+
+        /// <summary>
         /// The settings of the node.
         /// </summary>
         private string _settings;
@@ -35,11 +40,20 @@ namespace Database.Common.Messages
         /// <param name="port">The port of the node.</param>
         /// <param name="settings">The settings of the node.</param>
         public JoinAttempt(NodeType type, string name, int port, string settings)
+            : this(type, name, port, settings, false)
         {
-            _type = type;
-            _name = name;
-            _port = port;
-            _settings = settings;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="JoinAttempt"/> class.
+        /// </summary>
+        /// <param name="name">The name of the node.</param>
+        /// <param name="port">The port of the node.</param>
+        /// <param name="settings">The settings of the node.</param>
+        /// <param name="primary">A value indicating whether the joining node is the primary controller.</param>
+        public JoinAttempt(string name, int port, string settings, bool primary)
+            : this(NodeType.Controller, name, port, settings, primary)
+        {
         }
 
         /// <summary>
@@ -53,6 +67,24 @@ namespace Database.Common.Messages
             _name = ByteArrayHelper.ToString(data, ref index);
             _port = ByteArrayHelper.ToInt32(data, ref index);
             _settings = ByteArrayHelper.ToString(data, ref index);
+            _primary = ByteArrayHelper.ToBoolean(data, ref index);
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="JoinAttempt"/> class.
+        /// </summary>
+        /// <param name="type">The type of the node.</param>
+        /// <param name="name">The name of the node.</param>
+        /// <param name="port">The port of the node.</param>
+        /// <param name="settings">The settings of the node.</param>
+        /// <param name="primary">A value indicating whether the joining node is the primary controller.</param>
+        private JoinAttempt(NodeType type, string name, int port, string settings, bool primary)
+        {
+            _type = type;
+            _name = name;
+            _port = port;
+            _settings = settings;
+            _primary = primary;
         }
 
         /// <summary>
@@ -69,6 +101,14 @@ namespace Database.Common.Messages
         public int Port
         {
             get { return _port; }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether the joining node is the primary controller.
+        /// </summary>
+        public bool Primary
+        {
+            get { return _primary; }
         }
 
         /// <summary>
@@ -94,8 +134,9 @@ namespace Database.Common.Messages
             byte[] nameBytes = ByteArrayHelper.ToBytes(_name);
             byte[] portBytes = ByteArrayHelper.ToBytes(_port);
             byte[] settingsBytes = ByteArrayHelper.ToBytes(_settings);
+            byte[] primaryBytes = ByteArrayHelper.ToBytes(_primary);
 
-            return ByteArrayHelper.Combine(typeBytes, nameBytes, portBytes, settingsBytes);
+            return ByteArrayHelper.Combine(typeBytes, nameBytes, portBytes, settingsBytes, primaryBytes);
         }
 
         /// <inheritdoc />

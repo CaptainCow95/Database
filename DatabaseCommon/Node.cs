@@ -85,6 +85,11 @@ namespace Database.Common
         private Thread _messageSenderThread;
 
         /// <summary>
+        /// The primary controller.
+        /// </summary>
+        private NodeDefinition _primary;
+
+        /// <summary>
         /// A value indicating whether the node is running.
         /// </summary>
         private bool _running = false;
@@ -101,7 +106,19 @@ namespace Database.Common
         /// <summary>
         /// Gets or sets the current primary controller node.
         /// </summary>
-        public NodeDefinition Primary { get; set; }
+        public NodeDefinition Primary
+        {
+            get
+            {
+                return _primary;
+            }
+
+            set
+            {
+                _primary = value;
+                PrimaryChanged();
+            }
+        }
 
         /// <summary>
         /// Gets a value indicating whether the node is running.
@@ -186,10 +203,21 @@ namespace Database.Common
         }
 
         /// <summary>
+        /// Called when a connection is lost.
+        /// </summary>
+        /// <param name="node">The connection that was lost.</param>
+        protected abstract void ConnectionLost(NodeDefinition node);
+
+        /// <summary>
         /// Called when a message a received.
         /// </summary>
         /// <param name="message">The message that was received.</param>
         protected abstract void MessageReceived(Message message);
+
+        /// <summary>
+        /// Called when the primary controller has changed.
+        /// </summary>
+        protected abstract void PrimaryChanged();
 
         /// <summary>
         /// Renames a connection.
@@ -198,6 +226,11 @@ namespace Database.Common
         /// <param name="newName">The new name of the connection.</param>
         protected void RenameConnection(NodeDefinition currentName, NodeDefinition newName)
         {
+            if (Equals(currentName, newName))
+            {
+                return;
+            }
+
             // MAKE SURE THIS LOCK ORDER IS THE SAME EVERYWHERE
             lock (_connections)
             {
@@ -209,16 +242,22 @@ namespace Database.Common
                         if (_connections.ContainsKey(newName))
                         {
                             _connections.Remove(newName);
+                        }
+
+                        if (_messagesReceived.ContainsKey(newName))
+                        {
                             _messagesReceived.Remove(newName);
                         }
 
-                        _connections.Add(newName, _connections[currentName]);
+                        var connectionValue = _connections[currentName];
                         _connections.Remove(currentName);
+                        _connections.Add(newName, connectionValue);
 
                         if (_messagesReceived.ContainsKey(currentName))
                         {
-                            _messagesReceived.Add(newName, _messagesReceived[currentName]);
+                            var messageValue = _messagesReceived[currentName];
                             _messagesReceived.Remove(currentName);
+                            _messagesReceived.Add(newName, messageValue);
                         }
                     }
                 }
@@ -236,6 +275,15 @@ namespace Database.Common
             {
                 _messagesToSend.Enqueue(message);
             }
+        }
+
+        /// <summary>
+        /// Called when a connection is lost.
+        /// </summary>
+        /// <param name="node">The connection that was lost.</param>
+        private void ConnectionLostHandler(object node)
+        {
+            ConnectionLost((NodeDefinition)node);
         }
 
         /// <summary>
@@ -282,7 +330,7 @@ namespace Database.Common
         {
             Message message = new Message(address, data);
 
-            Logger.Log("Received message of type " + message.Data.GetType() + " from " + message.Address.ConnectionName, LogLevel.Debug);
+            Logger.Log("Received message of type " + message.Data.GetType().Name + " from " + message.Address.ConnectionName, LogLevel.Debug);
 
             // If the message is in response to another message, then don't send an event.
             // Also, if the message is a Heartbeat, we don't need to do anything,
@@ -328,7 +376,7 @@ namespace Database.Common
 
                     foreach (var item in responsesToRemove)
                     {
-                        Logger.Log("Timeout while waiting for message response from " + _waitingForResponses[item].Item1.Address, LogLevel.Info);
+                        Logger.Log("Timeout while waiting for message response from " + _waitingForResponses[item].Item1.Address.ConnectionName, LogLevel.Info);
                         _waitingForResponses.Remove(item);
                     }
                 }
@@ -352,15 +400,16 @@ namespace Database.Common
                             Logger.Log("Connection lost to " + connection.ConnectionName, LogLevel.Info);
                             _connections.Remove(connection);
                             _messagesReceived.Remove(connection);
+                            ThreadPool.QueueUserWorkItem(ConnectionLostHandler, connection);
                         }
                     }
                 }
 
                 // Keep thread responsive to shutdown while waiting for next run (5 seconds).
                 int i = 0;
-                while (_running && i < 5 * 4)
+                while (_running && i < 5)
                 {
-                    Thread.Sleep(250);
+                    Thread.Sleep(1000);
                     ++i;
                 }
             }
@@ -382,7 +431,7 @@ namespace Database.Common
                 {
                     foreach (var connection in _connections)
                     {
-                        SendMessage(new Message((NodeDefinition)connection.Key, new Heartbeat(), false));
+                        SendMessage(new Message(connection.Key, new Heartbeat(), false));
                     }
                 }
 
@@ -468,55 +517,95 @@ namespace Database.Common
                     {
                         var message = _messagesToSend.Dequeue();
 
-                        lock (_connections)
-                        {
-                            if ((_connections.ContainsKey(message.Address) &&
-                                 _connections[message.Address].Status == ConnectionStatus.Connected) ||
-                                message.SendWithoutConfirmation)
-                            {
-                                try
-                                {
-                                    if (!_connections.ContainsKey(message.Address))
-                                    {
-                                        TcpClient client = new TcpClient(message.Address.Hostname, message.Address.Port);
-                                        _connections.Add(message.Address, new Connection(client));
-                                    }
-
-                                    if (message.WaitingForResponse)
-                                    {
-                                        lock (_waitingForResponses)
-                                        {
-                                            _waitingForResponses.Add(message.ID, new Tuple<Message, DateTime>(message, DateTime.UtcNow));
-                                        }
-                                    }
-
-                                    byte[] dataToSend = message.EncodeMessage();
-                                    var stream = _connections[message.Address].Client.GetStream();
-                                    stream.Write(dataToSend, 0, dataToSend.Length);
-
-                                    message.Status = message.WaitingForResponse
-                                        ? MessageStatus.WaitingForResponse
-                                        : MessageStatus.Sent;
-                                }
-                                catch (Exception)
-                                {
-                                    message.Status = MessageStatus.SendingFailure;
-
-                                    lock (_waitingForResponses)
-                                    {
-                                        _waitingForResponses.Remove(message.ID);
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                message.Status = MessageStatus.SendingFailure;
-                            }
-                        }
+                        ThreadPool.QueueUserWorkItem(SendMessageWorkItem, message);
                     }
                 }
 
                 Thread.Sleep(1);
+            }
+        }
+
+        /// <summary>
+        /// Does the work of sending the messages.
+        /// </summary>
+        /// <param name="obj">The message to send.</param>
+        private void SendMessageWorkItem(object obj)
+        {
+            Message message = (Message)obj;
+
+            bool createConnection = false;
+            lock (_connections)
+            {
+                if (!_connections.ContainsKey(message.Address) && message.SendWithoutConfirmation)
+                {
+                    createConnection = true;
+                }
+            }
+
+            if (createConnection)
+            {
+                try
+                {
+                    TcpClient client = new TcpClient(message.Address.Hostname, message.Address.Port);
+                    lock (_connections)
+                    {
+                        if (!_connections.ContainsKey(message.Address))
+                        {
+                            _connections.Add(message.Address, new Connection(client));
+                        }
+                    }
+                }
+                catch
+                {
+                    message.Status = MessageStatus.SendingFailure;
+                    return;
+                }
+            }
+
+            lock (_connections)
+            {
+                if ((_connections.ContainsKey(message.Address) &&
+                     _connections[message.Address].Status == ConnectionStatus.Connected) ||
+                    message.SendWithoutConfirmation)
+                {
+                    try
+                    {
+                        if (!_connections.ContainsKey(message.Address))
+                        {
+                            message.Status = MessageStatus.SendingFailure;
+                            return;
+                        }
+
+                        if (message.WaitingForResponse)
+                        {
+                            lock (_waitingForResponses)
+                            {
+                                _waitingForResponses.Add(message.ID, new Tuple<Message, DateTime>(message, DateTime.UtcNow));
+                            }
+                        }
+
+                        byte[] dataToSend = message.EncodeMessage();
+                        var stream = _connections[message.Address].Client.GetStream();
+                        stream.Write(dataToSend, 0, dataToSend.Length);
+
+                        message.Status = message.WaitingForResponse
+                            ? MessageStatus.WaitingForResponse
+                            : MessageStatus.Sent;
+                    }
+                    catch
+                    {
+                        message.Status = MessageStatus.SendingFailure;
+
+                        lock (_waitingForResponses)
+                        {
+                            _waitingForResponses.Remove(message.ID);
+                        }
+                    }
+                }
+                else
+                {
+                    message.Status = MessageStatus.SendingFailure;
+                }
             }
         }
     }

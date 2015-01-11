@@ -60,6 +60,7 @@ namespace Database.Query
                         Connections[def].ConnectionEstablished(NodeType.Controller);
                         if (successData.PrimaryController)
                         {
+                            Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
                             Primary = message.Address;
                         }
                     }
@@ -75,7 +76,22 @@ namespace Database.Query
         }
 
         /// <inheritdoc />
+        protected override void ConnectionLost(NodeDefinition node)
+        {
+            if (Equals(Primary, node))
+            {
+                Logger.Log("Primary controller unreachable.", LogLevel.Info);
+                Primary = null;
+            }
+        }
+
+        /// <inheritdoc />
         protected override void MessageReceived(Message message)
+        {
+        }
+
+        /// <inheritdoc />
+        protected override void PrimaryChanged()
         {
         }
     }

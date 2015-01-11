@@ -12,6 +12,9 @@ namespace Database.Common
         /// </summary>
         private const string ConnectionStringDefault = "";
 
+        /// <summary>
+        /// The default log level.
+        /// </summary>
         private const LogLevel LogLevelDefault = LogLevel.Warning;
 
         /// <summary>
@@ -69,6 +72,9 @@ namespace Database.Common
         /// </summary>
         public string ConnectionString { get; private set; }
 
+        /// <summary>
+        /// Gets the log level.
+        /// </summary>
         public LogLevel LogLevel { get; private set; }
 
         /// <summary>
@@ -105,7 +111,7 @@ namespace Database.Common
             MaxChunkSize = ReadInt32(settings, "MaxChunkSize", MaxChunkSizeDefault);
             MaxChunkItemCount = ReadInt32(settings, "MaxChunkItemCount", MaxChunkItemCountDefault);
             RedundantNodesPerLocation = ReadInt32(settings, "RedundantNodesPerLocation", RedundantNodesPerLocationDefault);
-            LogLevel = ReadEnum<LogLevel>(settings, "LogLevel", LogLevelDefault);
+            LogLevel = ReadEnum(settings, "LogLevel", LogLevelDefault);
         }
 
         /// <inheritdoc />
@@ -117,7 +123,7 @@ namespace Database.Common
             WriteInt32(document, "MaxChunkSize", MaxChunkSize, root);
             WriteInt32(document, "MaxChunkItemCount", MaxChunkItemCount, root);
             WriteInt32(document, "RedundantNodesPerLocation", RedundantNodesPerLocation, root);
-            WriteEnum<LogLevel>(document, "LogLevel", LogLevel, root);
+            WriteEnum(document, "LogLevel", LogLevel, root);
         }
     }
 }

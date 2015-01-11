@@ -11,6 +11,9 @@ namespace Database.Common
     /// </summary>
     public static class Logger
     {
+        /// <summary>
+        /// The level at which messages will be logged.
+        /// </summary>
         private static LogLevel _logLevel;
 
         /// <summary>
@@ -23,8 +26,19 @@ namespace Database.Common
         /// </summary>
         private static string _logPrefix;
 
+        /// <summary>
+        /// The thread writing the messages to the log files.
+        /// </summary>
         private static Thread _logThread;
+
+        /// <summary>
+        /// A queue of the log messages to be written.
+        /// </summary>
         private static Queue<Tuple<string, LogLevel, DateTime>> _messages = new Queue<Tuple<string, LogLevel, DateTime>>();
+
+        /// <summary>
+        /// A value indicating whether the logging system is running.
+        /// </summary>
         private static bool _running = true;
 
         /// <summary>
@@ -32,6 +46,7 @@ namespace Database.Common
         /// </summary>
         /// <param name="logLocation">The location to write the log file to.</param>
         /// <param name="logPrefix">The name of the log file minus the extension.</param>
+        /// <param name="logLevel">The level at which messages will be logged.</param>
         public static void Init(string logLocation, string logPrefix, LogLevel logLevel)
         {
             _logLocation = logLocation;
@@ -46,6 +61,7 @@ namespace Database.Common
         /// Log a message.
         /// </summary>
         /// <param name="message">The message to log.</param>
+        /// <param name="logLevel">The level at which messages will be logged.</param>
         public static void Log(string message, LogLevel logLevel)
         {
             lock (_messages)
@@ -54,11 +70,17 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// Shuts down the logging system.
+        /// </summary>
         public static void Shutdown()
         {
             _running = false;
         }
 
+        /// <summary>
+        /// The run function for the logging thread.
+        /// </summary>
         private static void LogThreadRun()
         {
             while (_running)
@@ -71,12 +93,7 @@ namespace Database.Common
                         var item = _messages.Dequeue();
                         if (item.Item2 <= _logLevel)
                         {
-                            text.Append("[");
-                            text.Append(item.Item3.ToShortDateString());
-                            text.Append(" ");
-                            text.Append(item.Item3.ToLongTimeString());
-                            text.Append("] ");
-                            text.AppendLine(item.Item1);
+                            text.AppendFormat("[{0} {1} {2}] {3}\n", item.Item3.ToShortDateString(), item.Item3.ToLongTimeString(), Enum.GetName(typeof(LogLevel), item.Item2), item.Item1);
                         }
                     }
 

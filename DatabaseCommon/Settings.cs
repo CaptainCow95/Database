@@ -88,6 +88,14 @@ namespace Database.Common
             return defaultValue;
         }
 
+        /// <summary>
+        /// Reads an enumeration from a node.
+        /// </summary>
+        /// <typeparam name="T">The type of enumeration to read.</typeparam>
+        /// <param name="parent">The parent of the node to read from.</param>
+        /// <param name="name">The node to read from.</param>
+        /// <param name="defaultValue">The default value should an error occur, or it doesn't exist.</param>
+        /// <returns>The value read from the node.</returns>
         protected T ReadEnum<T>(XmlNode parent, string name, T defaultValue)
         {
             var value = ReadString(parent, name, string.Empty);
@@ -100,8 +108,7 @@ namespace Database.Common
                 }
                 else
                 {
-                    Logger.Log("\"" + value + "\" is not a valid option. Valid options are as follows: " +
-                               Enum.GetNames(typeof(T)).Aggregate((working, next) => working + ", " + next), LogLevel.Error);
+                    Logger.Log("\"" + value + "\" is not a valid option. Valid options are as follows: " + Enum.GetNames(typeof(T)).Aggregate((working, next) => working + ", " + next), LogLevel.Error);
                 }
             }
             catch
@@ -175,6 +182,15 @@ namespace Database.Common
             return WriteString(document, name, data.ToString(CultureInfo.InvariantCulture), parent);
         }
 
+        /// <summary>
+        /// Writes an enumeration to a node in the document.
+        /// </summary>
+        /// <typeparam name="T">The type of enumeration to write.</typeparam>
+        /// <param name="document">The document being written to.</param>
+        /// <param name="name">The name of the node.</param>
+        /// <param name="data">The enumeration being written.</param>
+        /// <param name="parent">The parent node to attach the written node to.</param>
+        /// <returns>The node that was written.</returns>
         protected XmlNode WriteEnum<T>(XmlDocument document, string name, T data, XmlNode parent)
         {
             return WriteString(document, name, Enum.GetName(typeof(T), data), parent);

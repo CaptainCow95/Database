@@ -23,6 +23,11 @@ namespace Database.Controller
         private uint _lastPrimaryMessageId = 0;
 
         /// <summary>
+        /// The thread that handles reconnecting to other controller nodes.
+        /// </summary>
+        private Thread _reconnectionThread;
+
+        /// <summary>
         /// The <see cref="NodeDefinition"/> that defines this node.
         /// </summary>
         private NodeDefinition _self;
@@ -75,40 +80,21 @@ namespace Database.Controller
 
             foreach (var def in _controllerNodes)
             {
-                if (!Equals(def, Self))
+                if (!Equals(def, Self) && !ConnectToController(def))
                 {
-                    Message message = new Message(def, new JoinAttempt(NodeType.Controller, _self.Hostname, _self.Port, _settings.ToString()), true);
-                    message.SendWithoutConfirmation = true;
-                    SendMessage(message);
-                    message.BlockUntilDone();
-
-                    if (message.Success)
-                    {
-                        if (message.Response.Data is JoinFailure)
-                        {
-                            Logger.Log("Failed to join other controllers: " +
-                                       ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
-                            AfterStop();
-                            return;
-                        }
-                        else
-                        {
-                            // success
-                            JoinSuccess success = (JoinSuccess)message.Response.Data;
-                            Connections[def].ConnectionEstablished(NodeType.Controller);
-                            if (success.PrimaryController)
-                            {
-                                Primary = def;
-                            }
-                        }
-                    }
+                    AfterStop();
+                    return;
                 }
             }
 
             if (_controllerNodes.Count == 1)
             {
+                Logger.Log("Only controller in the network, becoming primary.", LogLevel.Info);
                 Primary = Self;
             }
+
+            _reconnectionThread = new Thread(ReconnectionThreadRun);
+            _reconnectionThread.Start();
 
             while (Running)
             {
@@ -123,6 +109,33 @@ namespace Database.Controller
             }
 
             AfterStop();
+        }
+
+        /// <inheritdoc />
+        protected override void ConnectionLost(NodeDefinition node)
+        {
+            if (Equals(Primary, node))
+            {
+                Logger.Log("Primary controller unreachable, searching for new primary.", LogLevel.Info);
+                Primary = null;
+            }
+
+            // start at 1 because GetConnectedNodes doesn't include the current node.
+            int controllerActiveCount = 1;
+            var connectedNodes = GetConnectedNodes();
+            foreach (var def in _controllerNodes)
+            {
+                if (connectedNodes.Any(e => Equals(e.Item1, def)))
+                {
+                    controllerActiveCount++;
+                }
+            }
+
+            if (controllerActiveCount <= _controllerNodes.Count / 2)
+            {
+                Logger.Log("Not enough connected nodes to remain primary.", LogLevel.Info);
+                Primary = null;
+            }
         }
 
         /// <inheritdoc />
@@ -160,11 +173,22 @@ namespace Database.Controller
                         else
                         {
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
+                            if (Equals(message.Address, nodeDef))
+                            {
+                                Logger.Log("Duplicate connection found. Not recognizing new connection in favor of the old one.", LogLevel.Info);
+                            }
+
                             RenameConnection(message.Address, nodeDef);
                             Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
                             Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false);
                             response.Address = nodeDef;
                             SendMessage(response);
+
+                            if (joinAttemptData.Primary)
+                            {
+                                Logger.Log("Connection to primary controller established, setting primary to " + message.Address.ConnectionName, LogLevel.Info);
+                                Primary = nodeDef;
+                            }
                         }
 
                         break;
@@ -235,23 +259,18 @@ namespace Database.Controller
                         }
                     }
 
+                    bool votingResponse = false;
                     if (votingIds.Count > 0)
                     {
-                        var top = votingIds.Where(e => e.Item2 == max).OrderBy(e => e.Item1);
+                        var top = votingIds.Where(e => e.Item2 == max).OrderBy(e => e.Item1.ConnectionName);
 
                         if (Equals(top.First().Item1, message.Address))
                         {
-                            SendMessage(new Message(message, new VotingResponse(true), false));
-                        }
-                        else
-                        {
-                            SendMessage(new Message(message, new VotingResponse(false), false));
+                            votingResponse = true;
                         }
                     }
-                    else
-                    {
-                        SendMessage(new Message(message, new VotingResponse(false), false));
-                    }
+
+                    SendMessage(new Message(message, new VotingResponse(votingResponse), false));
                 }
             }
             else if (message.Data is LastPrimaryMessageIdRequest)
@@ -260,9 +279,55 @@ namespace Database.Controller
             }
             else if (message.Data is PrimaryAnnouncement)
             {
+                Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
                 Primary = message.Address;
-                _lastPrimaryMessageId = 0;
             }
+        }
+
+        /// <inheritdoc />
+        protected override void PrimaryChanged()
+        {
+            _lastPrimaryMessageId = 0;
+        }
+
+        /// <summary>
+        /// Connects to a controller.
+        /// </summary>
+        /// <param name="target">The target controller to try to connect to.</param>
+        /// <returns>A value indicating whether the target was connected to.</returns>
+        private bool ConnectToController(NodeDefinition target)
+        {
+            Message message = new Message(target, new JoinAttempt(_self.Hostname, _self.Port, _settings.ToString(), Equals(Primary, Self)), true);
+            message.SendWithoutConfirmation = true;
+            SendMessage(message);
+            message.BlockUntilDone();
+
+            if (message.Success)
+            {
+                if (message.Response.Data is JoinFailure)
+                {
+                    Logger.Log("Failed to join other controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
+                    return false;
+                }
+                else
+                {
+                    // success
+                    Logger.Log("Connected to controller " + target.ConnectionName, LogLevel.Info);
+                    JoinSuccess success = (JoinSuccess)message.Response.Data;
+                    Connections[target].ConnectionEstablished(NodeType.Controller);
+                    if (success.PrimaryController)
+                    {
+                        Logger.Log("Setting the primary controller to " + target.ConnectionName, LogLevel.Info);
+                        Primary = target;
+                    }
+                }
+            }
+            else
+            {
+                Logger.Log("Timeout while trying to connect to " + target.ConnectionName, LogLevel.Info);
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -309,17 +374,65 @@ namespace Database.Controller
 
                 if (!receivedResponse)
                 {
+                    Logger.Log("Vote failed, no responses received from connected nodes.", LogLevel.Warning);
                     becomePrimary = false;
                 }
             }
             else
             {
+                Logger.Log("Vote failed, not enough connected controllers for a majority.", LogLevel.Error);
                 becomePrimary = false;
             }
 
             if (becomePrimary)
             {
-                Primary = Self;
+                if (Primary != null)
+                {
+                    Logger.Log("Primary discovered during voting, sticking with current primary.", LogLevel.Info);
+                }
+                else
+                {
+                    Logger.Log("Vote successful, becoming the primary controller.", LogLevel.Info);
+                    Primary = Self;
+                    foreach (var def in _controllerNodes)
+                    {
+                        if (Equals(def, Self))
+                        {
+                            continue;
+                        }
+
+                        SendMessage(new Message(def, new PrimaryAnnouncement(), false));
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Runs the thread that handles reconnecting to the other controllers.
+        /// </summary>
+        private void ReconnectionThreadRun()
+        {
+            Random rand = new Random();
+
+            int timeToWait = rand.Next(30, 120);
+            int i = 0;
+            while (i < timeToWait && Running)
+            {
+                Thread.Sleep(1000);
+                ++i;
+            }
+
+            while (Running)
+            {
+                timeToWait = rand.Next(30, 120);
+                i = 0;
+                while (i < timeToWait && Running)
+                {
+                    Thread.Sleep(1000);
+                    ++i;
+                }
+
+                var connections = GetConnectedNodes();
                 foreach (var def in _controllerNodes)
                 {
                     if (Equals(def, Self))
@@ -327,7 +440,11 @@ namespace Database.Controller
                         continue;
                     }
 
-                    SendMessage(new Message(def, new PrimaryAnnouncement(), false));
+                    if (!connections.Any(e => Equals(e.Item1, def)))
+                    {
+                        Logger.Log("Attempting to reconnect to " + def.ConnectionName, LogLevel.Info);
+                        ConnectToController(def);
+                    }
                 }
             }
         }
@@ -337,13 +454,9 @@ namespace Database.Controller
         /// </summary>
         private void Update()
         {
-            if (Primary != null && !Equals(Primary, Self) && GetConnectedNodes().All(e => !Equals(e.Item1, Primary)))
-            {
-                Primary = null;
-            }
-
             if (Primary == null)
             {
+                Logger.Log("Initiating voting.", LogLevel.Info);
                 InitiateVoting();
             }
         }

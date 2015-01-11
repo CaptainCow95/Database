@@ -22,6 +22,9 @@ namespace Database.Common
         /// </summary>
         private const string LocationDefault = "";
 
+        /// <summary>
+        /// The default log level.
+        /// </summary>
         private const LogLevel LogLevelDefault = LogLevel.Warning;
 
         /// <summary>
@@ -78,6 +81,9 @@ namespace Database.Common
         /// </summary>
         public string Location { get; private set; }
 
+        /// <summary>
+        /// Gets the log level.
+        /// </summary>
         public LogLevel LogLevel { get; private set; }
 
         /// <summary>
@@ -105,7 +111,7 @@ namespace Database.Common
             Location = ReadString(settings, "Location", LocationDefault);
             CanBecomePrimary = ReadBoolean(settings, "CanBecomePrimary", CanBecomePrimaryDefault);
             Weight = ReadInt32(settings, "Weight", WeightDefault);
-            LogLevel = ReadEnum<LogLevel>(settings, "LogLevel", LogLevelDefault);
+            LogLevel = ReadEnum(settings, "LogLevel", LogLevelDefault);
         }
 
         /// <inheritdoc />
@@ -117,7 +123,7 @@ namespace Database.Common
             WriteString(document, "Location", Location, root);
             WriteBoolean(document, "CanBecomePrimary", CanBecomePrimary, root);
             WriteInt32(document, "Weight", Weight, root);
-            WriteEnum<LogLevel>(document, "LogLevel", LogLevel, root);
+            WriteEnum(document, "LogLevel", LogLevel, root);
         }
     }
 }
