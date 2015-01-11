@@ -48,6 +48,11 @@
     <Compile Include="Messages\JoinAttempt.cs" />
     <Compile Include="Messages\JoinFailure.cs" />
     <Compile Include="Messages\JoinSuccess.cs" />
+    <Compile Include="Messages\LastPrimaryMessageIdRequest.cs" />
+    <Compile Include="Messages\LastPrimaryMessageIdResponse.cs" />
+    <Compile Include="Messages\PrimaryAnnouncement.cs" />
+    <Compile Include="Messages\VotingRequest.cs" />
+    <Compile Include="Messages\VotingResponse.cs" />
     <Compile Include="NodeDefinition.cs" />
     <Compile Include="Message.cs" />
     <Compile Include="MessageStatus.cs" />

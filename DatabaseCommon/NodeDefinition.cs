@@ -83,6 +83,24 @@ namespace Database.Common
             return definitions;
         }
 
+        /// <inheritdoc />
+        public override bool Equals(object obj)
+        {
+            NodeDefinition def = obj as NodeDefinition;
+            if (def == null)
+            {
+                return false;
+            }
+
+            return def.ConnectionName == ConnectionName;
+        }
+
+        /// <inheritdoc />
+        public override int GetHashCode()
+        {
+            return ConnectionName.GetHashCode();
+        }
+
         /// <summary>
         /// Determines whether this node definition is the current node.
         /// </summary>

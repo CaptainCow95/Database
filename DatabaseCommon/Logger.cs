@@ -43,7 +43,7 @@ namespace Database.Common
             lock (LockObject)
             {
                 DateTime now = DateTime.UtcNow;
-                string data = "[" + now.ToShortDateString() + " " + now.ToShortTimeString() + "] " + message + "\n";
+                string data = "[" + now.ToShortDateString() + " " + now.ToLongTimeString() + "] " + message + "\n";
                 File.AppendAllText(Path.Combine(_logLocation, _logPrefix + ".log"), data);
             }
         }

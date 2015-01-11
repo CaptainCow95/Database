@@ -119,6 +119,14 @@ namespace Database.Common
         }
 
         /// <summary>
+        /// Gets the id of the message.
+        /// </summary>
+        public uint ID
+        {
+            get { return _id; }
+        }
+
+        /// <summary>
         /// Gets the response to this message.
         /// </summary>
         public Message Response
@@ -159,14 +167,6 @@ namespace Database.Common
         public bool WaitingForResponse
         {
             get { return _waitingForResponse; }
-        }
-
-        /// <summary>
-        /// Gets the id of the message.
-        /// </summary>
-        internal uint ID
-        {
-            get { return _id; }
         }
 
         /// <summary>

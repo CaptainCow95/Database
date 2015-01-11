@@ -61,7 +61,17 @@ namespace Database.Controller
 
                 StringBuilder page = new StringBuilder();
                 page.Append("<html><body><b>Controllers:</b><br /><ul>");
-                controllers.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
+                foreach (var controller in controllers)
+                {
+                    page.Append("<li>" + controller.ConnectionName);
+                    if (Equals(controller, _node.Primary))
+                    {
+                        page.Append(" <b>(PRIMARY)</b>");
+                    }
+
+                    page.Append("</li>");
+                }
+
                 page.Append("</ul><b>Storage:</b><br /><ul>");
                 storage.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
                 page.Append("</ul><b>Query:</b><br /><ul>");

@@ -1,6 +1,8 @@
 ﻿using Database.Common;
 using Database.Common.Messages;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 
 namespace Database.Controller
@@ -11,9 +13,14 @@ namespace Database.Controller
     public class ControllerNode : Node
     {
         /// <summary>
-        /// A value indicating whether this node is the primary controller.
+        /// A list of the controller nodes contained in the connection string.
         /// </summary>
-        private bool _primary = false;
+        private List<NodeDefinition> _controllerNodes;
+
+        /// <summary>
+        /// The last message id received from the current primary controller.
+        /// </summary>
+        private uint _lastPrimaryMessageId = 0;
 
         /// <summary>
         /// The <see cref="NodeDefinition"/> that defines this node.
@@ -46,11 +53,11 @@ namespace Database.Controller
         {
             BeforeStart();
 
-            List<NodeDefinition> controllerNodes = NodeDefinition.ParseConnectionString(_settings.ConnectionString);
+            _controllerNodes = NodeDefinition.ParseConnectionString(_settings.ConnectionString);
 
             // Find yourself
             _self = null;
-            foreach (var def in controllerNodes)
+            foreach (var def in _controllerNodes)
             {
                 if (def.IsSelf(_settings.Port))
                 {
@@ -66,9 +73,9 @@ namespace Database.Controller
                 return;
             }
 
-            foreach (var def in controllerNodes)
+            foreach (var def in _controllerNodes)
             {
-                if (def != _self)
+                if (!Equals(def, Self))
                 {
                     Message message = new Message(def, new JoinAttempt(NodeType.Controller, _self.Hostname, _self.Port, _settings.ToString()), true);
                     message.SendWithoutConfirmation = true;
@@ -87,20 +94,32 @@ namespace Database.Controller
                         else
                         {
                             // success
+                            JoinSuccess success = (JoinSuccess)message.Response.Data;
                             Connections[def].ConnectionEstablished(NodeType.Controller);
+                            if (success.PrimaryController)
+                            {
+                                Primary = def;
+                            }
                         }
                     }
                 }
             }
 
-            if (controllerNodes.Count == 1)
+            if (_controllerNodes.Count == 1)
             {
-                _primary = true;
+                Primary = Self;
             }
 
             while (Running)
             {
-                Thread.Sleep(1);
+                Update();
+
+                int i = 0;
+                while (Running && i < 30)
+                {
+                    Thread.Sleep(1000);
+                    ++i;
+                }
             }
 
             AfterStop();
@@ -109,6 +128,11 @@ namespace Database.Controller
         /// <inheritdoc />
         protected override void MessageReceived(Message message)
         {
+            if (Equals(message.Address, Primary))
+            {
+                _lastPrimaryMessageId = Math.Max(_lastPrimaryMessageId, message.ID);
+            }
+
             if (message.Data is JoinAttempt)
             {
                 JoinAttempt joinAttemptData = (JoinAttempt)message.Data;
@@ -138,7 +162,7 @@ namespace Database.Controller
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
                             RenameConnection(message.Address, nodeDef);
                             Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
-                            Message response = new Message(message, new JoinSuccess(_primary), false);
+                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false);
                             response.Address = nodeDef;
                             SendMessage(response);
                         }
@@ -156,7 +180,7 @@ namespace Database.Controller
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
                             RenameConnection(message.Address, nodeDef);
                             Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
-                            Message response = new Message(message, new JoinSuccess(_primary), false);
+                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false);
                             response.Address = nodeDef;
                             SendMessage(response);
                         }
@@ -174,13 +198,153 @@ namespace Database.Controller
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
                             RenameConnection(message.Address, nodeDef);
                             Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
-                            Message response = new Message(message, new JoinSuccess(_primary), false);
+                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false);
                             response.Address = nodeDef;
                             SendMessage(response);
                         }
 
                         break;
                 }
+            }
+            else if (message.Data is VotingRequest)
+            {
+                if (Primary != null)
+                {
+                    SendMessage(new Message(message, new VotingResponse(false), false));
+                }
+                else
+                {
+                    uint max = 0;
+                    List<Tuple<NodeDefinition, uint>> votingIds = new List<Tuple<NodeDefinition, uint>>();
+                    foreach (var def in _controllerNodes)
+                    {
+                        if (Equals(def, Self))
+                        {
+                            continue;
+                        }
+
+                        Message idRequest = new Message(def, new LastPrimaryMessageIdRequest(), true);
+                        SendMessage(idRequest);
+                        idRequest.BlockUntilDone();
+
+                        if (idRequest.Success)
+                        {
+                            uint votingId = ((LastPrimaryMessageIdResponse)idRequest.Response.Data).LastMessageId;
+                            max = Math.Max(max, votingId);
+                            votingIds.Add(new Tuple<NodeDefinition, uint>(def, votingId));
+                        }
+                    }
+
+                    if (votingIds.Count > 0)
+                    {
+                        var top = votingIds.Where(e => e.Item2 == max).OrderBy(e => e.Item1);
+
+                        if (Equals(top.First().Item1, message.Address))
+                        {
+                            SendMessage(new Message(message, new VotingResponse(true), false));
+                        }
+                        else
+                        {
+                            SendMessage(new Message(message, new VotingResponse(false), false));
+                        }
+                    }
+                    else
+                    {
+                        SendMessage(new Message(message, new VotingResponse(false), false));
+                    }
+                }
+            }
+            else if (message.Data is LastPrimaryMessageIdRequest)
+            {
+                SendMessage(new Message(message, new LastPrimaryMessageIdResponse(_lastPrimaryMessageId), false));
+            }
+            else if (message.Data is PrimaryAnnouncement)
+            {
+                Primary = message.Address;
+                _lastPrimaryMessageId = 0;
+            }
+        }
+
+        /// <summary>
+        /// Initiates a voting sequence.
+        /// </summary>
+        private void InitiateVoting()
+        {
+            bool becomePrimary = true;
+
+            // start at 1 because GetConnectedNodes doesn't include the current node.
+            int controllerActiveCount = 1;
+            var connectedNodes = GetConnectedNodes();
+            foreach (var def in _controllerNodes)
+            {
+                if (connectedNodes.Any(e => Equals(e.Item1, def)))
+                {
+                    controllerActiveCount++;
+                }
+            }
+
+            if (controllerActiveCount > _controllerNodes.Count / 2)
+            {
+                bool receivedResponse = false;
+                foreach (var def in _controllerNodes)
+                {
+                    if (Equals(def, Self))
+                    {
+                        continue;
+                    }
+
+                    Message message = new Message(def, new VotingRequest(), true);
+                    SendMessage(message);
+                    message.BlockUntilDone();
+                    if (message.Success)
+                    {
+                        receivedResponse = true;
+                        if (!((VotingResponse)message.Response.Data).Answer)
+                        {
+                            becomePrimary = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (!receivedResponse)
+                {
+                    becomePrimary = false;
+                }
+            }
+            else
+            {
+                becomePrimary = false;
+            }
+
+            if (becomePrimary)
+            {
+                Primary = Self;
+                foreach (var def in _controllerNodes)
+                {
+                    if (Equals(def, Self))
+                    {
+                        continue;
+                    }
+
+                    SendMessage(new Message(def, new PrimaryAnnouncement(), false));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates the controller.
+        /// </summary>
+        private void Update()
+        {
+            if (Primary != null && !Equals(Primary, Self) && GetConnectedNodes().All(e => !Equals(e.Item1, Primary)))
+            {
+                Primary = null;
+            }
+
+            if (Primary == null)
+            {
+                InitiateVoting();
             }
         }
     }

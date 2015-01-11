@@ -22,7 +22,7 @@ namespace Database.Common
         /// <summary>
         /// The amount of seconds before a heartbeat is sent out to all connections.
         /// </summary>
-        private const int HeartbeatInterval = 10;
+        private const int HeartbeatInterval = 5;
 
         /// <summary>
         /// The size of the buffer, in bytes, to be read at a time by the message listener.
@@ -97,6 +97,11 @@ namespace Database.Common
         {
             _port = port;
         }
+
+        /// <summary>
+        /// Gets or sets the current primary controller node.
+        /// </summary>
+        public NodeDefinition Primary { get; set; }
 
         /// <summary>
         /// Gets a value indicating whether the node is running.
@@ -198,8 +203,15 @@ namespace Database.Common
             {
                 lock (_messagesReceived)
                 {
-                    if (_connections.ContainsKey(currentName) && !_connections.ContainsKey(newName))
+                    if (_connections.ContainsKey(currentName))
                     {
+                        // Most likely means that a node disconnected and is trying to reconnect before the connection timeout time.
+                        if (_connections.ContainsKey(newName))
+                        {
+                            _connections.Remove(newName);
+                            _messagesReceived.Remove(newName);
+                        }
+
                         _connections.Add(newName, _connections[currentName]);
                         _connections.Remove(currentName);
 
@@ -270,6 +282,8 @@ namespace Database.Common
         {
             Message message = new Message(address, data);
 
+            Logger.Log("Received message of type " + message.Data.GetType() + " from " + message.Address.ConnectionName);
+
             // If the message is in response to another message, then don't send an event.
             // Also, if the message is a Heartbeat, we don't need to do anything,
             // the last connection time should have been updated when it was received.
@@ -330,9 +344,13 @@ namespace Database.Common
                         }
                     }
 
-                    foreach (var connection in connectionsToRemove)
+                    lock (_messagesReceived)
                     {
-                        _connections.Remove(connection);
+                        foreach (var connection in connectionsToRemove)
+                        {
+                            _connections.Remove(connection);
+                            _messagesReceived.Remove(connection);
+                        }
                     }
                 }
 
@@ -353,7 +371,7 @@ namespace Database.Common
         {
             for (int i = 0; i < HeartbeatInterval && _running; ++i)
             {
-                Thread.Sleep(1);
+                Thread.Sleep(1000);
             }
 
             while (_running)
@@ -362,13 +380,13 @@ namespace Database.Common
                 {
                     foreach (var connection in _connections)
                     {
-                        ThreadPool.QueueUserWorkItem(SendHeartbeat, connection.Key);
+                        SendMessage(new Message((NodeDefinition)connection.Key, new Heartbeat(), false));
                     }
+                }
 
-                    for (int i = 0; i < HeartbeatInterval && _running; ++i)
-                    {
-                        Thread.Sleep(1);
-                    }
+                for (int i = 0; i < HeartbeatInterval && _running; ++i)
+                {
+                    Thread.Sleep(1000);
                 }
             }
         }
@@ -498,15 +516,6 @@ namespace Database.Common
 
                 Thread.Sleep(1);
             }
-        }
-
-        /// <summary>
-        /// Sends a heartbeat to the specified address.
-        /// </summary>
-        /// <param name="address">The address to send the heartbeat to.</param>
-        private void SendHeartbeat(object address)
-        {
-            SendMessage(new Message((NodeDefinition)address, new Heartbeat(), false));
         }
     }
 }

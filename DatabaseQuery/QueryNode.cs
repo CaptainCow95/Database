@@ -11,11 +11,6 @@ namespace Database.Query
     public class QueryNode : Node
     {
         /// <summary>
-        /// The <see cref="NodeDefinition"/> that represents the primary controller.
-        /// </summary>
-        private NodeDefinition _primaryController;
-
-        /// <summary>
         /// The settings of the query node.
         /// </summary>
         private QueryNodeSettings _settings;
@@ -65,7 +60,7 @@ namespace Database.Query
                         Connections[def].ConnectionEstablished(NodeType.Controller);
                         if (successData.PrimaryController)
                         {
-                            _primaryController = message.Address;
+                            Primary = message.Address;
                         }
                     }
                 }

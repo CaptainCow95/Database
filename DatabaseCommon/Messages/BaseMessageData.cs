@@ -31,8 +31,23 @@ namespace Database.Common.Messages
                 case MessageType.Heartbeat:
                     return new Heartbeat();
 
+                case MessageType.VotingRequest:
+                    return new VotingRequest();
+
+                case MessageType.VotingResponse:
+                    return new VotingResponse(data, index);
+
+                case MessageType.LastPrimaryMessageIdRequest:
+                    return new LastPrimaryMessageIdRequest();
+
+                case MessageType.LastPrimaryMessageIdResponse:
+                    return new LastPrimaryMessageIdResponse(data, index);
+
+                case MessageType.PrimaryAnnouncement:
+                    return new PrimaryAnnouncement();
+
                 default:
-                    throw new Exception("Message type id not found: " + messageTypeId);
+                    throw new Exception("Message type id not found: " + messageTypeIdConverted);
             }
         }
 

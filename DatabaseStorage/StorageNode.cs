@@ -11,11 +11,6 @@ namespace Database.Storage
     public class StorageNode : Node
     {
         /// <summary>
-        /// The <see cref="NodeDefinition"/> that represents the primary controller.
-        /// </summary>
-        private NodeDefinition _primaryController;
-
-        /// <summary>
         /// The settings of the storage node.
         /// </summary>
         private StorageNodeSettings _settings;
@@ -65,7 +60,7 @@ namespace Database.Storage
                         Connections[def].ConnectionEstablished(NodeType.Controller);
                         if (successData.PrimaryController)
                         {
-                            _primaryController = message.Address;
+                            Primary = message.Address;
                         }
                     }
                 }
