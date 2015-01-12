@@ -85,9 +85,10 @@ namespace Database.Common
         {
             while (_running)
             {
+                StringBuilder text = new StringBuilder();
+
                 lock (_messages)
                 {
-                    StringBuilder text = new StringBuilder();
                     while (_messages.Count > 0)
                     {
                         var item = _messages.Dequeue();
@@ -96,9 +97,9 @@ namespace Database.Common
                             text.AppendFormat("[{0} {1} {2}] {3}\n", item.Item3.ToShortDateString(), item.Item3.ToLongTimeString(), Enum.GetName(typeof(LogLevel), item.Item2), item.Item1);
                         }
                     }
-
-                    File.AppendAllText(Path.Combine(_logLocation, _logPrefix + ".log"), text.ToString());
                 }
+
+                File.AppendAllText(Path.Combine(_logLocation, _logPrefix + ".log"), text.ToString());
 
                 Thread.Sleep(100);
             }
