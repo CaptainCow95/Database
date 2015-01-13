@@ -73,7 +73,7 @@ namespace Database.Controller
 
             if (_self == null)
             {
-                Logger.Log("Could not find myself in the connection string.", LogLevel.Error);
+                Logger.Log("Could not find myself in the connection string, shutting down.", LogLevel.Error);
                 AfterStop();
                 return;
             }

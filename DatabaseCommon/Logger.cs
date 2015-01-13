@@ -78,6 +78,27 @@ namespace Database.Common
             _running = false;
         }
 
+		/// <summary>
+		/// Flushes the messages to the log file.
+		/// </summary>
+		private static void FlushMessages()
+		{
+			StringBuilder text = new StringBuilder();
+			lock (_messages)
+			{
+				while (_messages.Count > 0)
+				{
+					var item = _messages.Dequeue();
+					if (item.Item2 <= _logLevel)
+					{
+						text.AppendFormat("[{0} {1} {2}] {3}\n", item.Item3.ToShortDateString(), item.Item3.ToLongTimeString(), Enum.GetName(typeof(LogLevel), item.Item2), item.Item1);
+					}
+				}
+			}
+
+			File.AppendAllText(Path.Combine(_logLocation, _logPrefix + ".log"), text.ToString());
+		}
+
         /// <summary>
         /// The run function for the logging thread.
         /// </summary>
@@ -85,24 +106,12 @@ namespace Database.Common
         {
             while (_running)
             {
-                StringBuilder text = new StringBuilder();
-
-                lock (_messages)
-                {
-                    while (_messages.Count > 0)
-                    {
-                        var item = _messages.Dequeue();
-                        if (item.Item2 <= _logLevel)
-                        {
-                            text.AppendFormat("[{0} {1} {2}] {3}\n", item.Item3.ToShortDateString(), item.Item3.ToLongTimeString(), Enum.GetName(typeof(LogLevel), item.Item2), item.Item1);
-                        }
-                    }
-                }
-
-                File.AppendAllText(Path.Combine(_logLocation, _logPrefix + ".log"), text.ToString());
+                FlushMessages();
 
                 Thread.Sleep(100);
             }
+
+			FlushMessages();
         }
     }
 }
