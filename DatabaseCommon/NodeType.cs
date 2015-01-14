@@ -21,6 +21,11 @@
         Query,
 
         /// <summary>
+        /// Represents a console node.
+        /// </summary>
+        Console,
+
+        /// <summary>
         /// Represents a currently unknown node.
         /// </summary>
         Unknown

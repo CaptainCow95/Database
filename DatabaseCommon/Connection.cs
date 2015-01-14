@@ -51,6 +51,14 @@ namespace Database.Common
         }
 
         /// <summary>
+        /// Marks the connection as disconnected.
+        /// </summary>
+        public void Disconnect()
+        {
+            Status = ConnectionStatus.Disconnected;
+        }
+
+        /// <summary>
         /// Resets the last active time to the current time.
         /// </summary>
         public void ResetLastActiveTime()

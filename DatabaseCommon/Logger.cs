@@ -12,6 +12,11 @@ namespace Database.Common
     public static class Logger
     {
         /// <summary>
+        /// A value indicating whether the logger is actually logging.
+        /// </summary>
+        private static bool _logging = true;
+
+        /// <summary>
         /// The level at which messages will be logged.
         /// </summary>
         private static LogLevel _logLevel;
@@ -42,6 +47,18 @@ namespace Database.Common
         private static bool _running = true;
 
         /// <summary>
+        /// Disables the logging mechanism.
+        /// </summary>
+        public static void Disable()
+        {
+            lock (_messages)
+            {
+                _messages.Clear();
+                _logging = false;
+            }
+        }
+
+        /// <summary>
         /// Initializes the logging class.
         /// </summary>
         /// <param name="logLocation">The location to write the log file to.</param>
@@ -66,7 +83,10 @@ namespace Database.Common
         {
             lock (_messages)
             {
-                _messages.Enqueue(new Tuple<string, LogLevel, DateTime>(message, logLevel, DateTime.UtcNow));
+                if (_logging)
+                {
+                    _messages.Enqueue(new Tuple<string, LogLevel, DateTime>(message, logLevel, DateTime.UtcNow));
+                }
             }
         }
 
@@ -78,26 +98,26 @@ namespace Database.Common
             _running = false;
         }
 
-		/// <summary>
-		/// Flushes the messages to the log file.
-		/// </summary>
-		private static void FlushMessages()
-		{
-			StringBuilder text = new StringBuilder();
-			lock (_messages)
-			{
-				while (_messages.Count > 0)
-				{
-					var item = _messages.Dequeue();
-					if (item.Item2 <= _logLevel)
-					{
-						text.AppendFormat("[{0} {1} {2}] {3}\n", item.Item3.ToShortDateString(), item.Item3.ToLongTimeString(), Enum.GetName(typeof(LogLevel), item.Item2), item.Item1);
-					}
-				}
-			}
+        /// <summary>
+        /// Flushes the messages to the log file.
+        /// </summary>
+        private static void FlushMessages()
+        {
+            StringBuilder text = new StringBuilder();
+            lock (_messages)
+            {
+                while (_messages.Count > 0)
+                {
+                    var item = _messages.Dequeue();
+                    if (item.Item2 <= _logLevel)
+                    {
+                        text.AppendFormat("[{0} {1} {2}] {3}\n", item.Item3.ToShortDateString(), item.Item3.ToLongTimeString(), Enum.GetName(typeof(LogLevel), item.Item2), item.Item1);
+                    }
+                }
+            }
 
-			File.AppendAllText(Path.Combine(_logLocation, _logPrefix + ".log"), text.ToString());
-		}
+            File.AppendAllText(Path.Combine(_logLocation, _logPrefix + ".log"), text.ToString());
+        }
 
         /// <summary>
         /// The run function for the logging thread.
@@ -111,7 +131,7 @@ namespace Database.Common
                 Thread.Sleep(100);
             }
 
-			FlushMessages();
+            FlushMessages();
         }
     }
 }

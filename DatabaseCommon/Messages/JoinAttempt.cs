@@ -35,10 +35,20 @@ namespace Database.Common.Messages
         /// <summary>
         /// Initializes a new instance of the <see cref="JoinAttempt"/> class.
         /// </summary>
+        /// <remarks>Used by the console node only.</remarks>
+        public JoinAttempt()
+            : this(NodeType.Console, string.Empty, -1, string.Empty, false)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="JoinAttempt"/> class.
+        /// </summary>
         /// <param name="type">The type of the node.</param>
         /// <param name="name">The name of the node.</param>
         /// <param name="port">The port of the node.</param>
         /// <param name="settings">The settings of the node.</param>
+        /// <remarks>Used by the storage and query nodes.</remarks>
         public JoinAttempt(NodeType type, string name, int port, string settings)
             : this(type, name, port, settings, false)
         {
@@ -51,6 +61,7 @@ namespace Database.Common.Messages
         /// <param name="port">The port of the node.</param>
         /// <param name="settings">The settings of the node.</param>
         /// <param name="primary">A value indicating whether the joining node is the primary controller.</param>
+        /// <remarks>Used by the controller node.</remarks>
         public JoinAttempt(string name, int port, string settings, bool primary)
             : this(NodeType.Controller, name, port, settings, primary)
         {

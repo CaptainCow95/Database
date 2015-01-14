@@ -52,7 +52,7 @@ namespace Database.Common
         /// <summary>
         /// The port the node is running on.
         /// </summary>
-        private readonly int _port;
+        private readonly int? _port;
 
         /// <summary>
         /// A collection of messages that are waiting for responses.
@@ -101,6 +101,14 @@ namespace Database.Common
         protected Node(int port)
         {
             _port = port;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Node"/> class. Using this constructor disables the ability to receive connections.
+        /// </summary>
+        protected Node()
+        {
+            _port = null;
         }
 
         /// <summary>
@@ -191,9 +199,12 @@ namespace Database.Common
             _messageSenderThread = new Thread(RunMessageSender);
             _messageSenderThread.Start();
 
-            _connectionListener = new TcpListener(IPAddress.Any, _port);
-            _connectionListener.Start();
-            _connectionListener.BeginAcceptTcpClient(ProcessConnectionRequest, null);
+            if (_port.HasValue)
+            {
+                _connectionListener = new TcpListener(IPAddress.Any, _port.Value);
+                _connectionListener.Start();
+                _connectionListener.BeginAcceptTcpClient(ProcessConnectionRequest, null);
+            }
 
             _cleanerThread = new Thread(RunCleaner);
             _cleanerThread.Start();
@@ -386,8 +397,7 @@ namespace Database.Common
                 {
                     foreach (var connection in _connections)
                     {
-                        if (!connection.Value.Client.Connected ||
-                            (now - connection.Value.LastActiveTime).TotalSeconds > ConnectionTimeout)
+                        if (!connection.Value.Client.Connected || (now - connection.Value.LastActiveTime).TotalSeconds > ConnectionTimeout || connection.Value.Status == ConnectionStatus.Disconnected)
                         {
                             connectionsToRemove.Add(connection.Key);
                         }

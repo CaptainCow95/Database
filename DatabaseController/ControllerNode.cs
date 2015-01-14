@@ -23,11 +23,6 @@ namespace Database.Controller
         private uint _lastPrimaryMessageId = 0;
 
         /// <summary>
-        /// The thread that handles reconnecting to other controller nodes.
-        /// </summary>
-        private Thread _reconnectionThread;
-
-        /// <summary>
         /// The <see cref="NodeDefinition"/> that defines this node.
         /// </summary>
         private NodeDefinition _self;
@@ -36,6 +31,11 @@ namespace Database.Controller
         /// The settings of the controller node.
         /// </summary>
         private ControllerNodeSettings _settings;
+
+        /// <summary>
+        /// The thread that handles reconnecting to other controller nodes.
+        /// </summary>
+        private Thread _updateThread;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ControllerNode"/> class.
@@ -93,19 +93,12 @@ namespace Database.Controller
                 Primary = Self;
             }
 
-            _reconnectionThread = new Thread(ReconnectionThreadRun);
-            _reconnectionThread.Start();
+            _updateThread = new Thread(UpdateThreadRun);
+            _updateThread.Start();
 
             while (Running)
             {
-                Update();
-
-                int i = 0;
-                while (Running && i < 30)
-                {
-                    Thread.Sleep(1000);
-                    ++i;
-                }
+                Thread.Sleep(1);
             }
 
             AfterStop();
@@ -227,6 +220,11 @@ namespace Database.Controller
                             SendMessage(response);
                         }
 
+                        break;
+
+                    case NodeType.Console:
+                        Connections[message.Address].ConnectionEstablished(joinAttemptData.Type);
+                        SendMessage(new Message(message, new JoinSuccess(Equals(Primary, Self)), false));
                         break;
                 }
             }
@@ -410,7 +408,7 @@ namespace Database.Controller
         /// <summary>
         /// Runs the thread that handles reconnecting to the other controllers.
         /// </summary>
-        private void ReconnectionThreadRun()
+        private void UpdateThreadRun()
         {
             Random rand = new Random();
 
@@ -446,18 +444,12 @@ namespace Database.Controller
                         ConnectToController(def);
                     }
                 }
-            }
-        }
 
-        /// <summary>
-        /// Updates the controller.
-        /// </summary>
-        private void Update()
-        {
-            if (Primary == null)
-            {
-                Logger.Log("Initiating voting.", LogLevel.Info);
-                InitiateVoting();
+                if (Primary == null)
+                {
+                    Logger.Log("Initiating voting.", LogLevel.Info);
+                    InitiateVoting();
+                }
             }
         }
     }

@@ -13,6 +13,11 @@
         /// <summary>
         /// The connection has successfully been established.
         /// </summary>
-        Connected
+        Connected,
+
+        /// <summary>
+        /// The connection has been disconnected.
+        /// </summary>
+        Disconnected
     }
 }
