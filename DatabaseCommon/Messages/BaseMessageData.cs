@@ -46,6 +46,12 @@ namespace Database.Common.Messages
                 case MessageType.PrimaryAnnouncement:
                     return new PrimaryAnnouncement();
 
+                case MessageType.DataOperation:
+                    return new DataOperation(data, index);
+
+                case MessageType.DataOperationResult:
+                    return new DataOperationResult(data, index);
+
                 default:
                     throw new Exception("Message type id not found: " + messageTypeIdConverted);
             }

@@ -45,6 +45,8 @@
     <Compile Include="ControllerNodeSettings.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="LogLevel.cs" />
+    <Compile Include="Messages\DataOperation.cs" />
+    <Compile Include="Messages\DataOperationResult.cs" />
     <Compile Include="Messages\Heartbeat.cs" />
     <Compile Include="Messages\JoinAttempt.cs" />
     <Compile Include="Messages\JoinFailure.cs" />

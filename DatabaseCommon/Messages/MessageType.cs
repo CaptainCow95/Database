@@ -49,5 +49,8 @@
         /// A <see cref="PrimaryAnnouncement"/> message.
         /// </summary>
         PrimaryAnnouncement = 8,
+
+        DataOperation,
+        DataOperationResult
     }
 }

@@ -10,6 +10,8 @@ namespace Database.Storage
     /// </summary>
     public class StorageNode : Node
     {
+        private Database _database;
+
         /// <summary>
         /// The settings of the storage node.
         /// </summary>
@@ -23,6 +25,7 @@ namespace Database.Storage
             : base(settings.Port)
         {
             _settings = settings;
+            _database = new Database();
         }
 
         /// <inheritdoc />
@@ -88,6 +91,10 @@ namespace Database.Storage
         /// <inheritdoc />
         protected override void MessageReceived(Message message)
         {
+            if (message.Data is DataOperation)
+            {
+                DataOperationResult result = _database.ProcessOperation((DataOperation)message.Data);
+            }
         }
 
         /// <inheritdoc />
