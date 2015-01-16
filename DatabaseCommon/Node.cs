@@ -15,6 +15,11 @@ namespace Database.Common
     public abstract class Node
     {
         /// <summary>
+        /// The amount of seconds between cleaner runs.
+        /// </summary>
+        private const int CleanerFrequency = 2;
+
+        /// <summary>
         /// The amount of seconds before a connection causes a timeout.
         /// </summary>
         private const int ConnectionTimeout = 30;
@@ -28,11 +33,6 @@ namespace Database.Common
         /// The size of the buffer, in bytes, to be read at a time by the message listener.
         /// </summary>
         private const int MessageBufferSize = 1024;
-
-        /// <summary>
-        /// The amount of seconds before waiting for a response causes a timeout.
-        /// </summary>
-        private const int ResponseTimeout = 30;
 
         /// <summary>
         /// A collection of the current connections.
@@ -378,7 +378,7 @@ namespace Database.Common
                 {
                     foreach (var item in _waitingForResponses)
                     {
-                        if ((now - item.Value.Item2).TotalSeconds > ResponseTimeout)
+                        if ((now - item.Value.Item2).TotalSeconds > item.Value.Item1.ResponseTimeout)
                         {
                             item.Value.Item1.Status = MessageStatus.ResponseTimeout;
                             responsesToRemove.Add(item.Key);
@@ -417,7 +417,7 @@ namespace Database.Common
 
                 // Keep thread responsive to shutdown while waiting for next run (5 seconds).
                 int i = 0;
-                while (_running && i < 5)
+                while (_running && i < CleanerFrequency)
                 {
                     Thread.Sleep(1000);
                     ++i;

@@ -357,6 +357,9 @@ namespace Database.Controller
                     }
 
                     Message message = new Message(def, new VotingRequest(), true);
+
+                    // Increase timeout so that there is extra time if a voting id request times out in another controller.
+                    message.ResponseTimeout = 60;
                     SendMessage(message);
                     message.BlockUntilDone();
                     if (message.Success)
