@@ -1,4 +1,5 @@
-﻿using Database.Common.Messages;
+﻿using Database.Common;
+using Database.Common.Messages;
 using System;
 using System.Collections.Generic;
 
