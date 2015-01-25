@@ -8,7 +8,7 @@
         /// <summary>
         /// The value of the string.
         /// </summary>
-        private string _value;
+        private readonly string _value;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CommandPartString"/> class.

@@ -10,6 +10,9 @@ namespace Database.Storage
     /// </summary>
     public class StorageNode : Node
     {
+        /// <summary>
+        /// The database of the node.
+        /// </summary>
         private Database _database;
 
         /// <summary>
@@ -43,8 +46,11 @@ namespace Database.Storage
 
             foreach (var def in controllerNodes)
             {
-                Message message = new Message(def, new JoinAttempt(NodeType.Storage, _settings.NodeName, _settings.Port, _settings.ToString()), true);
-                message.SendWithoutConfirmation = true;
+                Message message = new Message(def, new JoinAttempt(NodeType.Storage, _settings.NodeName, _settings.Port, _settings.ToString()), true)
+                {
+                    SendWithoutConfirmation = true
+                };
+
                 SendMessage(message);
                 message.BlockUntilDone();
 
@@ -56,16 +62,14 @@ namespace Database.Storage
                         AfterStop();
                         return;
                     }
-                    else
+
+                    // success
+                    JoinSuccess successData = (JoinSuccess)message.Response.Data;
+                    Connections[def].ConnectionEstablished(NodeType.Controller);
+                    if (successData.PrimaryController)
                     {
-                        // success
-                        JoinSuccess successData = (JoinSuccess)message.Response.Data;
-                        Connections[def].ConnectionEstablished(NodeType.Controller);
-                        if (successData.PrimaryController)
-                        {
-                            Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
-                            Primary = message.Address;
-                        }
+                        Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
+                        Primary = message.Address;
                     }
                 }
             }
@@ -94,6 +98,7 @@ namespace Database.Storage
             if (message.Data is DataOperation)
             {
                 DataOperationResult result = _database.ProcessOperation((DataOperation)message.Data);
+                SendMessage(new Message(message, result, false));
             }
         }
 

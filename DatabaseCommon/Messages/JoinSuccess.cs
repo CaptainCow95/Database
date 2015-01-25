@@ -8,7 +8,7 @@
         /// <summary>
         /// A value indicating whether the node is the primary controller.
         /// </summary>
-        private bool _primaryController;
+        private readonly bool _primaryController;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="JoinSuccess"/> class.
@@ -38,7 +38,7 @@
         }
 
         /// <inheritdoc />
-        public override byte[] EncodeInternal()
+        protected override byte[] EncodeInternal()
         {
             return ByteArrayHelper.ToBytes(_primaryController);
         }

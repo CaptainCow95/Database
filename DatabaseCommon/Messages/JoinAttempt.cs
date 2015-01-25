@@ -10,27 +10,27 @@ namespace Database.Common.Messages
         /// <summary>
         /// The name of the node.
         /// </summary>
-        private string _name;
+        private readonly string _name;
 
         /// <summary>
         /// The port of the node.
         /// </summary>
-        private int _port;
+        private readonly int _port;
 
         /// <summary>
         /// A value indicating whether the joining node is the primary controller.
         /// </summary>
-        private bool _primary;
+        private readonly bool _primary;
 
         /// <summary>
         /// The settings of the node.
         /// </summary>
-        private string _settings;
+        private readonly string _settings;
 
         /// <summary>
         /// The type of the node.
         /// </summary>
-        private NodeType _type;
+        private readonly NodeType _type;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="JoinAttempt"/> class.
@@ -139,7 +139,7 @@ namespace Database.Common.Messages
         }
 
         /// <inheritdoc />
-        public override byte[] EncodeInternal()
+        protected override byte[] EncodeInternal()
         {
             byte[] typeBytes = ByteArrayHelper.ToBytes((int)_type);
             byte[] nameBytes = ByteArrayHelper.ToBytes(_name);

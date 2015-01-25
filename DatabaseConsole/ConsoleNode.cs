@@ -92,8 +92,11 @@ namespace Database.Console
 
             NodeDefinition def = new NodeDefinition(targetStringParts[0], port);
 
-            Message message = new Message(def, new JoinAttempt(), true);
-            message.SendWithoutConfirmation = true;
+            Message message = new Message(def, new JoinAttempt(), true)
+            {
+                SendWithoutConfirmation = true
+            };
+
             SendMessage(message);
             message.BlockUntilDone();
 

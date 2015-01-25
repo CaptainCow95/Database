@@ -8,7 +8,7 @@
         /// <summary>
         /// The reason the join failed.
         /// </summary>
-        private string _reason;
+        private readonly string _reason;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="JoinFailure"/> class.
@@ -38,7 +38,7 @@
         }
 
         /// <inheritdoc />
-        public override byte[] EncodeInternal()
+        protected override byte[] EncodeInternal()
         {
             return ByteArrayHelper.ToBytes(_reason);
         }

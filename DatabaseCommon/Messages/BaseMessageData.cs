@@ -71,7 +71,7 @@ namespace Database.Common.Messages
         /// </summary>
         /// <returns>The encoded data as a byte array.</returns>
         /// <remarks>This is the overridden method that is called internally by the Encode method.</remarks>
-        public abstract byte[] EncodeInternal();
+        protected abstract byte[] EncodeInternal();
 
         /// <summary>
         /// Gets the message type id.

@@ -1,4 +1,4 @@
-﻿namespace Database.Common
+﻿namespace Database.Common.DataOperation
 {
     /// <summary>
     /// Represents the different types of document entries.
@@ -28,7 +28,7 @@
         /// <summary>
         /// An entry that is an embedded document.
         /// </summary>
-        Object,
+        Document,
 
         /// <summary>
         /// An entry that is a string.

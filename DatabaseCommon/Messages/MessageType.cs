@@ -50,7 +50,14 @@
         /// </summary>
         PrimaryAnnouncement = 8,
 
+        /// <summary>
+        /// A <see cref="DataOperation"/> message.
+        /// </summary>
         DataOperation,
+
+        /// <summary>
+        /// A <see cref="DataOperationResult"/> message.
+        /// </summary>
         DataOperationResult
     }
 }

@@ -30,7 +30,7 @@
         public bool Answer { get; private set; }
 
         /// <inheritdoc />
-        public override byte[] EncodeInternal()
+        protected override byte[] EncodeInternal()
         {
             return ByteArrayHelper.ToBytes(Answer);
         }

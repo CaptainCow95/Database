@@ -6,7 +6,7 @@
     public class VotingRequest : BaseMessageData
     {
         /// <inheritdoc />
-        public override byte[] EncodeInternal()
+        protected override byte[] EncodeInternal()
         {
             return new byte[0];
         }

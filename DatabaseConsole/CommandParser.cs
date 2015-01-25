@@ -11,7 +11,7 @@ namespace Database.Console
         /// <summary>
         /// A list of the valid commands.
         /// </summary>
-        private List<Tuple<CommandSyntax, ProcessCommand>> _commands = new List<Tuple<CommandSyntax, ProcessCommand>>();
+        private readonly List<Tuple<CommandSyntax, ProcessCommand>> _commands = new List<Tuple<CommandSyntax, ProcessCommand>>();
 
         /// <summary>
         /// The delegate used when executing a command.

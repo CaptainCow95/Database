@@ -1,26 +1,49 @@
 ﻿namespace Database.Common.Messages
 {
+    /// <summary>
+    /// Represents a request to do an operation.
+    /// </summary>
     public class DataOperation : BaseMessageData
     {
-        private string _operation;
+        /// <summary>
+        /// The JSON representing the operation.
+        /// </summary>
+        private readonly string _json;
 
-        public DataOperation(string operation)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DataOperation"/> class.
+        /// </summary>
+        /// <param name="json">The JSON representing the operation.</param>
+        public DataOperation(string json)
         {
-            _operation = operation;
+            _json = json;
         }
 
-        public DataOperation(byte[] data, int index)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DataOperation"/> class.
+        /// </summary>
+        /// <param name="data">The data to read from.</param>
+        /// <param name="index">The index at which to start reading from.</param>
+        internal DataOperation(byte[] data, int index)
         {
-            _operation = ByteArrayHelper.ToString(data, ref index);
+            _json = ByteArrayHelper.ToString(data, ref index);
         }
 
-        public string Operation { get { return _operation; } }
-
-        public override byte[] EncodeInternal()
+        /// <summary>
+        /// Gets the JSON representing the operation.
+        /// </summary>
+        public string Json
         {
-            return ByteArrayHelper.ToBytes(_operation);
+            get { return _json; }
         }
 
+        /// <inheritdoc />
+        protected override byte[] EncodeInternal()
+        {
+            return ByteArrayHelper.ToBytes(_json);
+        }
+
+        /// <inheritdoc />
         protected override int GetMessageTypeId()
         {
             return (int)MessageType.DataOperation;

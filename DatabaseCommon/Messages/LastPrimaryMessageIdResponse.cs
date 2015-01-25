@@ -30,7 +30,7 @@
         public uint LastMessageId { get; private set; }
 
         /// <inheritdoc />
-        public override byte[] EncodeInternal()
+        protected override byte[] EncodeInternal()
         {
             return ByteArrayHelper.ToBytes(LastMessageId);
         }

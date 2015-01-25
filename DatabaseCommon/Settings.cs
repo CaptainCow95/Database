@@ -44,10 +44,12 @@ namespace Database.Common
 
             Save(document, root);
 
-            var writerSettings = new XmlWriterSettings();
-            writerSettings.Indent = true;
-            writerSettings.IndentChars = " ";
-            writerSettings.Encoding = Encoding.UTF8;
+            var writerSettings = new XmlWriterSettings
+            {
+                Indent = true,
+                IndentChars = " ",
+                Encoding = Encoding.UTF8
+            };
 
             using (var stringWriter = new StringWriter())
             using (var xmlTextWriter = XmlWriter.Create(stringWriter, writerSettings))
@@ -106,10 +108,8 @@ namespace Database.Common
                 {
                     return enumValue;
                 }
-                else
-                {
-                    Logger.Log("\"" + value + "\" is not a valid option. Valid options are as follows: " + Enum.GetNames(typeof(T)).Aggregate((working, next) => working + ", " + next), LogLevel.Error);
-                }
+
+                Logger.Log("\"" + value + "\" is not a valid option. Valid options are as follows: " + Enum.GetNames(typeof(T)).Aggregate((working, next) => working + ", " + next), LogLevel.Error);
             }
             catch
             {

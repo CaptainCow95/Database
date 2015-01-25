@@ -12,6 +12,11 @@ namespace Database.Common
     public static class Logger
     {
         /// <summary>
+        /// A queue of the log messages to be written.
+        /// </summary>
+        private static readonly Queue<Tuple<string, LogLevel, DateTime>> Messages = new Queue<Tuple<string, LogLevel, DateTime>>();
+
+        /// <summary>
         /// A value indicating whether the logger is actually logging.
         /// </summary>
         private static bool _logging = true;
@@ -37,11 +42,6 @@ namespace Database.Common
         private static Thread _logThread;
 
         /// <summary>
-        /// A queue of the log messages to be written.
-        /// </summary>
-        private static Queue<Tuple<string, LogLevel, DateTime>> _messages = new Queue<Tuple<string, LogLevel, DateTime>>();
-
-        /// <summary>
         /// A value indicating whether the logging system is running.
         /// </summary>
         private static bool _running = true;
@@ -51,9 +51,9 @@ namespace Database.Common
         /// </summary>
         public static void Disable()
         {
-            lock (_messages)
+            lock (Messages)
             {
-                _messages.Clear();
+                Messages.Clear();
                 _logging = false;
             }
         }
@@ -81,11 +81,11 @@ namespace Database.Common
         /// <param name="logLevel">The level at which messages will be logged.</param>
         public static void Log(string message, LogLevel logLevel)
         {
-            lock (_messages)
+            lock (Messages)
             {
                 if (_logging)
                 {
-                    _messages.Enqueue(new Tuple<string, LogLevel, DateTime>(message, logLevel, DateTime.UtcNow));
+                    Messages.Enqueue(new Tuple<string, LogLevel, DateTime>(message, logLevel, DateTime.UtcNow));
                 }
             }
         }
@@ -104,11 +104,11 @@ namespace Database.Common
         private static void FlushMessages()
         {
             StringBuilder text = new StringBuilder();
-            lock (_messages)
+            lock (Messages)
             {
-                while (_messages.Count > 0)
+                while (Messages.Count > 0)
                 {
-                    var item = _messages.Dequeue();
+                    var item = Messages.Dequeue();
                     if (item.Item2 <= _logLevel)
                     {
                         text.AppendFormat("[{0} {1} {2}] {3}\n", item.Item3.ToShortDateString(), item.Item3.ToLongTimeString(), Enum.GetName(typeof(LogLevel), item.Item2), item.Item1);

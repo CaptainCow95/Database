@@ -1,7 +1,8 @@
 ﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 
-namespace Database.Common
+namespace Database.Common.DataOperation
 {
     /// <summary>
     /// Represents an entry in a document.
@@ -11,17 +12,17 @@ namespace Database.Common
         /// <summary>
         /// The entry's key.
         /// </summary>
-        private string _key;
+        private readonly string _key;
 
         /// <summary>
         /// The entry's value.
         /// </summary>
-        private object _value;
+        private readonly object _value;
 
         /// <summary>
         /// The type of the entry's value.
         /// </summary>
-        private DocumentEntryType _valueType;
+        private readonly DocumentEntryType _valueType;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DocumentEntry"/> class.
@@ -44,17 +45,19 @@ namespace Database.Common
                 switch (reader.TokenType)
                 {
                     case JsonToken.StartArray:
-                        ReadArray(reader);
+                        _value = ReadArray(reader);
                         _valueType = DocumentEntryType.Array;
                         break;
 
                     case JsonToken.StartObject:
-                        ReadObject(reader);
-                        _valueType = DocumentEntryType.Object;
+                        _value = ReadDocument(reader);
+                        _valueType = DocumentEntryType.Document;
                         break;
 
                     default:
-                        ReadValue(reader);
+                        var result = ReadValue(reader);
+                        _value = result.Item1;
+                        _valueType = result.Item2;
                         break;
                 }
             }
@@ -74,6 +77,54 @@ namespace Database.Common
         public object Value
         {
             get { return _value; }
+        }
+
+        /// <summary>
+        /// Gets the value as an array.
+        /// </summary>
+        public List<DocumentEntry> ValueAsArray
+        {
+            get { return _value as List<DocumentEntry>; }
+        }
+
+        /// <summary>
+        /// Gets the value as a boolean.
+        /// </summary>
+        public bool? ValueAsBoolean
+        {
+            get { return _value as bool?; }
+        }
+
+        /// <summary>
+        /// Gets the value as a document.
+        /// </summary>
+        public Document ValueAsDocument
+        {
+            get { return _value as Document; }
+        }
+
+        /// <summary>
+        /// Gets the value as a float.
+        /// </summary>
+        public float? ValueAsFloat
+        {
+            get { return _value as float?; }
+        }
+
+        /// <summary>
+        /// Gets the value as an integer.
+        /// </summary>
+        public int? ValueAsInteger
+        {
+            get { return _value as int?; }
+        }
+
+        /// <summary>
+        /// Gets the value as a string.
+        /// </summary>
+        public string ValueAsString
+        {
+            get { return _value as string; }
         }
 
         /// <summary>
@@ -103,7 +154,7 @@ namespace Database.Common
                     writer.WriteEndArray();
                     break;
 
-                case DocumentEntryType.Object:
+                case DocumentEntryType.Document:
                     ((Document)_value).Write(writer);
                     break;
 
@@ -116,8 +167,9 @@ namespace Database.Common
         /// <summary>
         /// Reads an array entry.
         /// </summary>
-        /// <param name="reader">The reader to read from.</param>
-        private void ReadArray(JsonTextReader reader)
+        /// <param name="reader">The reader to read from.</param>]
+        /// <returns>The result of the reading the array.</returns>
+        private List<DocumentEntry> ReadArray(JsonTextReader reader)
         {
             List<DocumentEntry> entries = new List<DocumentEntry>();
             while (reader.Read() && reader.TokenType != JsonToken.EndArray)
@@ -125,46 +177,50 @@ namespace Database.Common
                 entries.Add(new DocumentEntry(reader, true));
             }
 
-            _value = entries;
+            return entries;
         }
 
         /// <summary>
-        /// Reads an object entry.
+        /// Reads a document entry.
         /// </summary>
         /// <param name="reader">The reader to read from.</param>
-        private void ReadObject(JsonTextReader reader)
+        /// <returns>The result of reading the document.</returns>
+        private Document ReadDocument(JsonTextReader reader)
         {
-            _value = new Document(reader);
+            return new Document(reader);
         }
 
         /// <summary>
         /// Reads the entry's value.
         /// </summary>
         /// <param name="reader">The reader to read from.</param>
-        private void ReadValue(JsonTextReader reader)
+        /// <returns>The result of reading the value.</returns>
+        private Tuple<object, DocumentEntryType> ReadValue(JsonTextReader reader)
         {
-            _value = reader.Value;
+            DocumentEntryType type;
             switch (reader.TokenType)
             {
                 case JsonToken.Boolean:
-                    _valueType = DocumentEntryType.Boolean;
+                    type = DocumentEntryType.Boolean;
                     break;
 
                 case JsonToken.Float:
-                    _valueType = DocumentEntryType.Float;
+                    type = DocumentEntryType.Float;
                     break;
 
                 case JsonToken.Integer:
-                    _valueType = DocumentEntryType.Integer;
+                    type = DocumentEntryType.Integer;
                     break;
 
                 case JsonToken.String:
-                    _valueType = DocumentEntryType.String;
+                    type = DocumentEntryType.String;
                     break;
 
                 default:
-                    throw new InvalidDocumentException();
+                    throw new InvalidDocumentException("Could not read the specified json token type.");
             }
+
+            return new Tuple<object, DocumentEntryType>(reader.Value, type);
         }
     }
 }

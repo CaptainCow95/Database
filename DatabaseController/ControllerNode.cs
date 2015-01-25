@@ -173,8 +173,11 @@ namespace Database.Controller
 
                             RenameConnection(message.Address, nodeDef);
                             Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
-                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false);
-                            response.Address = nodeDef;
+                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false)
+                            {
+                                Address = nodeDef
+                            };
+
                             SendMessage(response);
 
                             if (joinAttemptData.Primary)
@@ -197,8 +200,11 @@ namespace Database.Controller
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
                             RenameConnection(message.Address, nodeDef);
                             Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
-                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false);
-                            response.Address = nodeDef;
+                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false)
+                            {
+                                Address = nodeDef
+                            };
+
                             SendMessage(response);
                         }
 
@@ -215,8 +221,11 @@ namespace Database.Controller
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
                             RenameConnection(message.Address, nodeDef);
                             Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
-                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false);
-                            response.Address = nodeDef;
+                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false)
+                            {
+                                Address = nodeDef
+                            };
+
                             SendMessage(response);
                         }
 
@@ -295,8 +304,11 @@ namespace Database.Controller
         /// <returns>A value indicating whether the target was connected to.</returns>
         private bool ConnectToController(NodeDefinition target)
         {
-            Message message = new Message(target, new JoinAttempt(_self.Hostname, _self.Port, _settings.ToString(), Equals(Primary, Self)), true);
-            message.SendWithoutConfirmation = true;
+            Message message = new Message(target, new JoinAttempt(_self.Hostname, _self.Port, _settings.ToString(), Equals(Primary, Self)), true)
+            {
+                SendWithoutConfirmation = true
+            };
+
             SendMessage(message);
             message.BlockUntilDone();
 
@@ -307,17 +319,15 @@ namespace Database.Controller
                     Logger.Log("Failed to join other controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
                     return false;
                 }
-                else
+
+                // success
+                Logger.Log("Connected to controller " + target.ConnectionName, LogLevel.Info);
+                JoinSuccess success = (JoinSuccess)message.Response.Data;
+                Connections[target].ConnectionEstablished(NodeType.Controller);
+                if (success.PrimaryController)
                 {
-                    // success
-                    Logger.Log("Connected to controller " + target.ConnectionName, LogLevel.Info);
-                    JoinSuccess success = (JoinSuccess)message.Response.Data;
-                    Connections[target].ConnectionEstablished(NodeType.Controller);
-                    if (success.PrimaryController)
-                    {
-                        Logger.Log("Setting the primary controller to " + target.ConnectionName, LogLevel.Info);
-                        Primary = target;
-                    }
+                    Logger.Log("Setting the primary controller to " + target.ConnectionName, LogLevel.Info);
+                    Primary = target;
                 }
             }
             else
@@ -356,10 +366,12 @@ namespace Database.Controller
                         continue;
                     }
 
-                    Message message = new Message(def, new VotingRequest(), true);
+                    Message message = new Message(def, new VotingRequest(), true)
+                    {
+                        // Increase timeout so that there is extra time if a voting id request times out in another controller.
+                        ResponseTimeout = 60
+                    };
 
-                    // Increase timeout so that there is extra time if a voting id request times out in another controller.
-                    message.ResponseTimeout = 60;
                     SendMessage(message);
                     message.BlockUntilDone();
                     if (message.Success)
