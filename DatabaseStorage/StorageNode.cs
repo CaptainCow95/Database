@@ -95,7 +95,30 @@ namespace Database.Storage
         /// <inheritdoc />
         protected override void MessageReceived(Message message)
         {
-            if (message.Data is DataOperation)
+            if (message.Data is JoinAttempt)
+            {
+                JoinAttempt attempt = (JoinAttempt)message.Data;
+                if (attempt.Type != NodeType.Query)
+                {
+                    SendMessage(new Message(message, new JoinFailure("Only a query node can send a join attempt to a storage node."), false));
+                }
+
+                if (attempt.Settings != _settings.ConnectionString)
+                {
+                    SendMessage(new Message(message, new JoinFailure("The connection strings do not match."), false));
+                }
+
+                NodeDefinition nodeDef = new NodeDefinition(attempt.Name, attempt.Port);
+                RenameConnection(message.Address, nodeDef);
+                Connections[nodeDef].ConnectionEstablished(attempt.Type);
+                Message response = new Message(message, new JoinSuccess(false), false)
+                {
+                    Address = nodeDef
+                };
+
+                SendMessage(response);
+            }
+            else if (message.Data is DataOperation)
             {
                 DataOperationResult result = _database.ProcessOperation((DataOperation)message.Data);
                 SendMessage(new Message(message, result, false));

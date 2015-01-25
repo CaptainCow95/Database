@@ -55,7 +55,7 @@
                     return false;
                 }
 
-                output = new CommandPartLiteral(text.Substring(1, endIndex - 1));
+                output = new CommandPartLiteral(text.Substring(1, endIndex - 1).Replace("\\\"", "\""));
                 text = text.Substring(endIndex + 1);
                 return true;
             }

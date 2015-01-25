@@ -52,6 +52,9 @@ namespace Database.Common.Messages
                 case MessageType.DataOperationResult:
                     return new DataOperationResult(data, index);
 
+                case MessageType.StorageNodeConnection:
+                    return new StorageNodeConnection(data, index);
+
                 default:
                     throw new Exception("Message type id not found: " + messageTypeIdConverted);
             }

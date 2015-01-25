@@ -187,7 +187,7 @@ namespace Database.Common.DataOperation
                         break;
 
                     case QueryItemPartType.Equal:
-                        if (!Equals(doc[_key], part.Value))
+                        if (!AreEqual(doc[_key], part.Value))
                         {
                             return false;
                         }
@@ -195,7 +195,7 @@ namespace Database.Common.DataOperation
                         break;
 
                     case QueryItemPartType.NotEqual:
-                        if (Equals(doc[_key], part.Value))
+                        if (AreEqual(doc[_key], part.Value))
                         {
                             return false;
                         }
@@ -237,6 +237,71 @@ namespace Database.Common.DataOperation
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Checks if a equals b.
+        /// </summary>
+        /// <param name="a">The left side of the operator.</param>
+        /// <param name="b">The right side of the operator.</param>
+        /// <returns>The result of the operator.</returns>
+        private bool AreEqual(DocumentEntry a, DocumentEntry b)
+        {
+            if (a.ValueType != b.ValueType)
+            {
+                return false;
+            }
+
+            switch (a.ValueType)
+            {
+                case DocumentEntryType.Array:
+                    bool allFound = true;
+                    foreach (var item in a.ValueAsArray)
+                    {
+                        if (!b.ValueAsArray.Any(e => AreEqual(item, e)))
+                        {
+                            allFound = false;
+                        }
+                    }
+
+                    return allFound && a.ValueAsArray.Count == b.ValueAsArray.Count;
+
+                case DocumentEntryType.Boolean:
+                    return a.ValueAsBoolean == b.ValueAsBoolean;
+
+                case DocumentEntryType.Document:
+                    if (a.ValueAsDocument.Count != b.ValueAsDocument.Count)
+                    {
+                        return false;
+                    }
+
+                    foreach (var item in a.ValueAsDocument)
+                    {
+                        if (!b.ValueAsDocument.ContainsKey(item.Key))
+                        {
+                            return false;
+                        }
+
+                        if (!AreEqual(b.ValueAsDocument[item.Key], item.Value))
+                        {
+                            return false;
+                        }
+                    }
+
+                    return true;
+
+                case DocumentEntryType.Float:
+                    return a.ValueAsFloat == b.ValueAsFloat;
+
+                case DocumentEntryType.Integer:
+                    return a.ValueAsInteger == b.ValueAsInteger;
+
+                case DocumentEntryType.String:
+                    return a.ValueAsString == b.ValueAsString;
+
+                default:
+                    return false;
+            }
         }
 
         /// <summary>

@@ -15,6 +15,11 @@ namespace Database.Console
         /// </summary>
         private bool _connected = false;
 
+        /// <summary>
+        /// The node definition of the connected controller.
+        /// </summary>
+        private NodeDefinition _connectedDef;
+
         /// <inheritdoc />
         public override NodeDefinition Self
         {
@@ -32,6 +37,7 @@ namespace Database.Console
             parser.AddCommand(new CommandSyntax(new CommandPartLiteral("connect "), new CommandPartString()), CommandConnect);
             parser.AddCommand(new CommandSyntax(new CommandPartLiteral("disconnect")), CommandDisconnect);
             parser.AddCommand(new CommandSyntax(new CommandPartLiteral("help")), CommandHelp);
+            parser.AddCommand(new CommandSyntax(new CommandPartLiteral("operation "), new CommandPartString()), CommandOperation);
 
             System.Console.WriteLine("Type \"help\" for a list of commands.");
 
@@ -109,6 +115,7 @@ namespace Database.Console
                 else
                 {
                     System.Console.WriteLine("Connected to " + def.ConnectionName);
+                    _connectedDef = def;
                     _connected = true;
                     Connections[def].ConnectionEstablished(NodeType.Controller);
                 }
@@ -133,6 +140,7 @@ namespace Database.Console
             System.Console.WriteLine("Disconnected");
 
             _connected = false;
+            _connectedDef = null;
         }
 
         /// <summary>
@@ -141,10 +149,36 @@ namespace Database.Console
         /// <param name="command">The command data.</param>
         private void CommandHelp(List<CommandPart> command)
         {
-            System.Console.WriteLine("connect STRING:\tconnects to the specified node");
-            System.Console.WriteLine("disconnect:\tdisconnects from the node");
-            System.Console.WriteLine("help:\t\tprints this help text");
-            System.Console.WriteLine("status:\t\tprints the status of the network");
+            System.Console.WriteLine("connect STRING:\t\tconnects to the specified node");
+            System.Console.WriteLine("disconnect:\t\tdisconnects from the node");
+            System.Console.WriteLine("help:\t\t\tprints this help text");
+            System.Console.WriteLine("operation STRING:\tsends an operation to the database");
+        }
+
+        /// <summary>
+        /// The operation command.
+        /// </summary>
+        /// <param name="command">The command data.</param>
+        private void CommandOperation(List<CommandPart> command)
+        {
+            string op = ((CommandPartLiteral)command[1]).Value;
+
+            Message message = new Message(_connectedDef, new DataOperation(op), true)
+            {
+                ResponseTimeout = 30
+            };
+
+            SendMessage(message);
+            message.BlockUntilDone();
+
+            if (message.Success)
+            {
+                System.Console.WriteLine(((DataOperationResult)message.Response.Data).Result);
+            }
+            else
+            {
+                System.Console.WriteLine("Message failure.");
+            }
         }
     }
 }

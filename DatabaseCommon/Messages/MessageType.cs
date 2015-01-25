@@ -53,11 +53,16 @@
         /// <summary>
         /// A <see cref="DataOperation"/> message.
         /// </summary>
-        DataOperation,
+        DataOperation = 9,
 
         /// <summary>
         /// A <see cref="DataOperationResult"/> message.
         /// </summary>
-        DataOperationResult
+        DataOperationResult = 10,
+
+        /// <summary>
+        /// A <see cref="StorageNodeConnection"/> message.
+        /// </summary>
+        StorageNodeConnection = 11
     }
 }

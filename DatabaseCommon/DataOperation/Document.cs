@@ -125,8 +125,6 @@ namespace Database.Common.DataOperation
                 {
                     _data[key] = value;
                 }
-
-                throw new KeyNotFoundException();
             }
         }
 

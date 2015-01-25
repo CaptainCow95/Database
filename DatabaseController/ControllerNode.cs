@@ -206,6 +206,8 @@ namespace Database.Controller
                             };
 
                             SendMessage(response);
+
+                            SendStorageNodeConnectionMessage();
                         }
 
                         break;
@@ -227,6 +229,8 @@ namespace Database.Controller
                             };
 
                             SendMessage(response);
+
+                            SendStorageNodeConnectionMessage();
                         }
 
                         break;
@@ -288,6 +292,38 @@ namespace Database.Controller
             {
                 Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
                 Primary = message.Address;
+            }
+            else if (message.Data is DataOperation)
+            {
+                var nodes = GetConnectedNodes();
+                bool found = false;
+                foreach (var node in nodes)
+                {
+                    if (node.Item2 == NodeType.Query)
+                    {
+                        found = true;
+                        Message op = new Message(node.Item1, message.Data, true);
+                        SendMessage(op);
+
+                        op.BlockUntilDone();
+
+                        if (op.Success)
+                        {
+                            SendMessage(new Message(message, op.Response.Data, false));
+                        }
+                        else
+                        {
+                            SendMessage(new Message(message, new DataOperationResult("{\"success\":false,\"error\":\"Message to the query node failed.\"}"), false));
+                        }
+
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    SendMessage(new Message(message, new DataOperationResult("{\"success\":false,\"error\":\"Could not reach a query node.\"}"), false));
+                }
             }
         }
 
@@ -416,6 +452,23 @@ namespace Database.Controller
 
                         SendMessage(new Message(def, new PrimaryAnnouncement(), false));
                     }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Sends a <see cref="StorageNodeConnection"/> message to all active query nodes.
+        /// </summary>
+        private void SendStorageNodeConnectionMessage()
+        {
+            var nodes = GetConnectedNodes();
+            StorageNodeConnection data = new StorageNodeConnection(nodes.Where(e => e.Item2 == NodeType.Storage).Select(e => e.Item1.ConnectionName).ToList());
+
+            foreach (var item in GetConnectedNodes())
+            {
+                if (item.Item2 == NodeType.Query)
+                {
+                    SendMessage(new Message(item.Item1, data, false));
                 }
             }
         }

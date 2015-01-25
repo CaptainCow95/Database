@@ -6,7 +6,7 @@ namespace Database.Common.DataOperation
     /// <summary>
     /// Represents a unique object id.
     /// </summary>
-    public class ObjectId
+    public class ObjectId : IComparable
     {
         /// <summary>
         /// The first part of the id.
@@ -41,10 +41,10 @@ namespace Database.Common.DataOperation
         public ObjectId(Guid systemId, int counterValue)
         {
             byte[] bytes = systemId.ToByteArray();
-            _int0 = (bytes[0] << 3) + (bytes[1] << 2) + (bytes[2] << 1) + bytes[3];
-            _int1 = (bytes[4] << 3) + (bytes[5] << 2) + (bytes[6] << 1) + bytes[7];
-            _int2 = (bytes[8] << 3) + (bytes[9] << 2) + (bytes[10] << 1) + bytes[11];
-            _int3 = (bytes[12] << 3) + (bytes[13] << 2) + (bytes[14] << 1) + bytes[15];
+            _int0 = (bytes[0] << 24) + (bytes[1] << 16) + (bytes[2] << 8) + bytes[3];
+            _int1 = (bytes[4] << 24) + (bytes[5] << 16) + (bytes[6] << 8) + bytes[7];
+            _int2 = (bytes[8] << 24) + (bytes[9] << 16) + (bytes[10] << 8) + bytes[11];
+            _int3 = (bytes[12] << 24) + (bytes[13] << 16) + (bytes[14] << 8) + bytes[15];
             _int4 = counterValue;
         }
 
@@ -59,11 +59,17 @@ namespace Database.Common.DataOperation
                 throw new ArgumentException("The string is of the wrong length, it should be a 20 character hex string.");
             }
 
-            _int0 = int.Parse(s.Substring(0, 4), NumberStyles.AllowHexSpecifier);
-            _int1 = int.Parse(s.Substring(4, 4), NumberStyles.AllowHexSpecifier);
-            _int2 = int.Parse(s.Substring(8, 4), NumberStyles.AllowHexSpecifier);
-            _int3 = int.Parse(s.Substring(12, 4), NumberStyles.AllowHexSpecifier);
-            _int4 = int.Parse(s.Substring(16, 4), NumberStyles.AllowHexSpecifier);
+            _int0 = int.Parse(s.Substring(0, 8), NumberStyles.AllowHexSpecifier);
+            _int1 = int.Parse(s.Substring(8, 8), NumberStyles.AllowHexSpecifier);
+            _int2 = int.Parse(s.Substring(16, 8), NumberStyles.AllowHexSpecifier);
+            _int3 = int.Parse(s.Substring(24, 8), NumberStyles.AllowHexSpecifier);
+            _int4 = int.Parse(s.Substring(32, 8), NumberStyles.AllowHexSpecifier);
+        }
+
+        /// <inheritdoc />
+        public int CompareTo(object obj)
+        {
+            return string.Compare(ToString(), obj.ToString(), StringComparison.Ordinal);
         }
 
         /// <inheritdoc />

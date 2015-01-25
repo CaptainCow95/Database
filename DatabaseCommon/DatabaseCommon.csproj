@@ -70,6 +70,7 @@
     <Compile Include="Messages\LastPrimaryMessageIdRequest.cs" />
     <Compile Include="Messages\LastPrimaryMessageIdResponse.cs" />
     <Compile Include="Messages\PrimaryAnnouncement.cs" />
+    <Compile Include="Messages\StorageNodeConnection.cs" />
     <Compile Include="Messages\VotingRequest.cs" />
     <Compile Include="Messages\VotingResponse.cs" />
     <Compile Include="NodeDefinition.cs" />

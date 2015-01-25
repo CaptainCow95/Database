@@ -1,4 +1,5 @@
 ﻿using Database.Common;
+using System;
 using System.IO;
 
 namespace Database.Query
@@ -14,10 +15,22 @@ namespace Database.Query
         private static QueryNode _node;
 
         /// <summary>
+        /// Called when an unhandled exception occurs in order to log it.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The event arguments.</param>
+        private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            Logger.Log("Unhandled exception: " + ((Exception)e.ExceptionObject).Message + "\nStacktrace: " + ((Exception)e.ExceptionObject).StackTrace, LogLevel.Error);
+        }
+
+        /// <summary>
         /// The main method of the program.
         /// </summary>
         private static void Main()
         {
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+
             QueryNodeSettings settings;
             if (File.Exists("config.xml"))
             {

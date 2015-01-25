@@ -14,14 +14,14 @@ namespace Database.Storage
     public class Database
     {
         /// <summary>
+        /// The database's data.
+        /// </summary>
+        private readonly SortedDictionary<ObjectId, Document> _data = new SortedDictionary<ObjectId, Document>();
+
+        /// <summary>
         /// The system's id.
         /// </summary>
         private readonly Guid _systemId = Guid.NewGuid();
-
-        /// <summary>
-        /// The database's data.
-        /// </summary>
-        private SortedDictionary<ObjectId, Document> _data = new SortedDictionary<ObjectId, Document>();
 
         /// <summary>
         /// The counter for generating new <see cref="ObjectId"/>s.
@@ -131,7 +131,7 @@ namespace Database.Storage
                         ObjectId id;
                         try
                         {
-                            id = new ObjectId((string)op.Document["id"].Value);
+                            id = new ObjectId(op.Document["id"].ValueAsString);
                         }
                         catch (ArgumentException)
                         {
@@ -162,11 +162,12 @@ namespace Database.Storage
                             id = GenerateObjectId();
                         }
 
+                        op.Document["id"] = new DocumentEntry("id", DocumentEntryType.String, id.ToString());
                         _data.Add(id, op.Document);
                     }
                 }
 
-                return new DataOperationResult("{\"success\":true}");
+                return new DataOperationResult("{\"success\":true,\"document\":" + op.Document.ToJson() + "}");
             }
 
             return new DataOperationResult("{\"success\":false,\"error\":\"Syntax error while trying to parse add command.\"}");
@@ -205,15 +206,21 @@ namespace Database.Storage
                     builder.Append("{\"success\":true,\"results\":{");
 
                     int count = 0;
+                    bool first = true;
                     foreach (var result in results)
                     {
-                        builder.Append("\"" + count + "\":{");
+                        if (!first)
+                        {
+                            builder.Append(",");
+                        }
+
+                        builder.Append("\"" + count + "\":");
                         builder.Append(result.ToJson());
-                        builder.Append("},");
                         ++count;
+                        first = false;
                     }
 
-                    builder.Append("\"count\":" + count);
+                    builder.Append(",\"count\":" + count);
 
                     builder.Append("}}");
                     return new DataOperationResult(builder.ToString());
@@ -276,10 +283,12 @@ namespace Database.Storage
                         {
                             toUpdate.RemoveField(field);
                         }
-                    }
-                }
 
-                return new DataOperationResult("{\"success\":true}");
+                        return new DataOperationResult("{\"success\":true,\"document\":" + toUpdate.ToJson() + "}");
+                    }
+
+                    return new DataOperationResult("{\"success\":false,\"error\":\"Document not found.\"}");
+                }
             }
 
             return new DataOperationResult("{\"success\":false,\"error\":\"Syntax error while trying to parse update command.\"}");

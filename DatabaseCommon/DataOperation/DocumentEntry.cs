@@ -27,6 +27,19 @@ namespace Database.Common.DataOperation
         /// <summary>
         /// Initializes a new instance of the <see cref="DocumentEntry"/> class.
         /// </summary>
+        /// <param name="key">The key to use.</param>
+        /// <param name="valueType">The type of the value.</param>
+        /// <param name="value">The value to use.</param>
+        public DocumentEntry(string key, DocumentEntryType valueType, object value)
+        {
+            _key = key;
+            _valueType = valueType;
+            _value = value;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DocumentEntry"/> class.
+        /// </summary>
         /// <param name="reader">The reader to read from.</param>
         /// <param name="arrayEntry">A value indicating whether this is an entry in an array.</param>
         internal DocumentEntry(JsonTextReader reader, bool arrayEntry)
