@@ -48,7 +48,9 @@ namespace Database.Common.DataOperation
             {
                 // Array entry, so there is no key.
                 _key = string.Empty;
-                ReadValue(reader);
+                var result = ReadValue(reader);
+                _value = result.Item1;
+                _valueType = result.Item2;
             }
             else
             {
@@ -121,7 +123,7 @@ namespace Database.Common.DataOperation
         /// </summary>
         public float? ValueAsFloat
         {
-            get { return _value as float?; }
+            get { return _valueType == DocumentEntryType.Float ? (float?)Convert.ToSingle(_value) : null; }
         }
 
         /// <summary>
@@ -129,7 +131,7 @@ namespace Database.Common.DataOperation
         /// </summary>
         public int? ValueAsInteger
         {
-            get { return _value as int?; }
+            get { return _valueType == DocumentEntryType.Integer ? (int?)Convert.ToInt32(_value) : null; }
         }
 
         /// <summary>

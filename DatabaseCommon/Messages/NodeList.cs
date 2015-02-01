@@ -8,38 +8,38 @@ namespace Database.Common.Messages
     /// <summary>
     /// Represents a message that contains all active storage nodes.
     /// </summary>
-    public class StorageNodeConnection : BaseMessageData
+    public class NodeList : BaseMessageData
     {
         /// <summary>
-        /// A list of the storage nodes.
+        /// A list of the nodes.
         /// </summary>
-        private readonly List<string> _storageNodes;
+        private readonly List<string> _nodes;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="StorageNodeConnection"/> class.
+        /// Initializes a new instance of the <see cref="NodeList"/> class.
         /// </summary>
-        /// <param name="storageNodes">A list of the storage nodes.</param>
-        public StorageNodeConnection(List<string> storageNodes)
+        /// <param name="nodes">A list of the nodes.</param>
+        public NodeList(List<string> nodes)
         {
-            _storageNodes = storageNodes;
+            _nodes = nodes;
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="StorageNodeConnection"/> class.
+        /// Initializes a new instance of the <see cref="NodeList"/> class.
         /// </summary>
         /// <param name="data">The data to read from.</param>
         /// <param name="index">The index at which to start reading from.</param>
-        public StorageNodeConnection(byte[] data, int index)
+        public NodeList(byte[] data, int index)
         {
-            _storageNodes = ByteArrayHelper.ToString(data, ref index).Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+            _nodes = ByteArrayHelper.ToString(data, ref index).Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
         }
 
         /// <summary>
-        /// Gets a list of the storage nodes.
+        /// Gets a list of the nodes.
         /// </summary>
-        public List<string> StorageNodes
+        public List<string> Nodes
         {
-            get { return _storageNodes; }
+            get { return _nodes; }
         }
 
         /// <inheritdoc />
@@ -47,7 +47,7 @@ namespace Database.Common.Messages
         {
             bool first = true;
             StringBuilder builder = new StringBuilder();
-            foreach (var item in _storageNodes)
+            foreach (var item in _nodes)
             {
                 if (!first)
                 {
@@ -64,7 +64,7 @@ namespace Database.Common.Messages
         /// <inheritdoc />
         protected override int GetMessageTypeId()
         {
-            return (int)MessageType.StorageNodeConnection;
+            return (int)MessageType.NodeList;
         }
     }
 }

@@ -26,6 +26,11 @@
         Console,
 
         /// <summary>
+        /// Represents an API node.
+        /// </summary>
+        Api,
+
+        /// <summary>
         /// Represents a currently unknown node.
         /// </summary>
         Unknown

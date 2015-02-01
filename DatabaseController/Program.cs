@@ -30,6 +30,8 @@ namespace Database.Controller
                 var controllers = new List<NodeDefinition>();
                 var storage = new List<NodeDefinition>();
                 var query = new List<NodeDefinition>();
+                var console = new List<NodeDefinition>();
+                var api = new List<NodeDefinition>();
 
                 var self = _node.Self;
                 if (_node.Self != null)
@@ -52,12 +54,22 @@ namespace Database.Controller
                         case NodeType.Query:
                             query.Add(item.Item1);
                             break;
+
+                        case NodeType.Console:
+                            console.Add(item.Item1);
+                            break;
+
+                        case NodeType.Api:
+                            api.Add(item.Item1);
+                            break;
                     }
                 }
 
                 controllers = controllers.OrderBy(e => e.ConnectionName).ToList();
                 storage = storage.OrderBy(e => e.ConnectionName).ToList();
                 query = query.OrderBy(e => e.ConnectionName).ToList();
+                console = console.OrderBy(e => e.ConnectionName).ToList();
+                api = console.OrderBy(e => e.ConnectionName).ToList();
 
                 StringBuilder page = new StringBuilder();
                 page.Append("<html><body><b>Controllers:</b><br /><ul>");
@@ -76,6 +88,18 @@ namespace Database.Controller
                 storage.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
                 page.Append("</ul><b>Query:</b><br /><ul>");
                 query.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
+                if (console.Count > 0)
+                {
+                    page.Append("</ul><b>Console:</b><br /><ul>");
+                    console.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
+                }
+
+                if (api.Count > 0)
+                {
+                    page.Append("</ul><b>API:</b><br /><ul>");
+                    api.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
+                }
+
                 page.Append("</ul></body></html>");
 
                 return page.ToString();

@@ -61,8 +61,8 @@
         DataOperationResult = 10,
 
         /// <summary>
-        /// A <see cref="StorageNodeConnection"/> message.
+        /// A <see cref="NodeList"/> message.
         /// </summary>
-        StorageNodeConnection = 11
+        NodeList = 11
     }
 }

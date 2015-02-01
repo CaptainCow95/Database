@@ -77,7 +77,7 @@ namespace Database.Query
 
             while (Running)
             {
-                Thread.Sleep(1);
+                Thread.Sleep(100);
             }
 
             AfterStop();
@@ -104,11 +104,27 @@ namespace Database.Query
         /// <inheritdoc />
         protected override void MessageReceived(Message message)
         {
-            if (message.Data is StorageNodeConnection)
+            if (message.Data is JoinAttempt)
+            {
+                JoinAttempt attempt = (JoinAttempt)message.Data;
+                if (attempt.Type != NodeType.Api)
+                {
+                    SendMessage(new Message(message, new JoinFailure("Only an API node can send a join attempt to a query node."), false));
+                }
+
+                if (attempt.Settings != _settings.ConnectionString)
+                {
+                    SendMessage(new Message(message, new JoinFailure("The connection strings do not match."), false));
+                }
+
+                Connections[message.Address].ConnectionEstablished(attempt.Type);
+                SendMessage(new Message(message, new JoinSuccess(false), false));
+            }
+            else if (message.Data is NodeList)
             {
                 lock (_connectedStorageNodes)
                 {
-                    _connectedStorageNodes = ((StorageNodeConnection)message.Data).StorageNodes.Select(e => new NodeDefinition(e.Split(':')[0], int.Parse(e.Split(':')[1]))).ToList();
+                    _connectedStorageNodes = ((NodeList)message.Data).Nodes.Select(e => new NodeDefinition(e.Split(':')[0], int.Parse(e.Split(':')[1]))).ToList();
 
                     var connections = GetConnectedNodes();
                     foreach (var item in _connectedStorageNodes)
@@ -143,6 +159,7 @@ namespace Database.Query
             else if (message.Data is DataOperation)
             {
                 DataOperation op = (DataOperation)message.Data;
+                Document dataOperation = new Document(op.Json);
                 List<Message> sent = new List<Message>();
                 lock (_connectedStorageNodes)
                 {
@@ -154,18 +171,56 @@ namespace Database.Query
                     }
                 }
 
-                Document operationResult = new Document("{}");
-                foreach (var result in sent)
+                Document operationResult = new Document();
+                if (dataOperation.ContainsKey("query"))
                 {
-                    result.BlockUntilDone();
-                    if (result.Success)
+                    bool success = true;
+                    int i = 0;
+                    foreach (var result in sent)
                     {
-                        Document doc = new Document(((DataOperationResult)result.Response.Data).Result);
-                        if (doc["success"].ValueAsBoolean.Value)
+                        result.BlockUntilDone();
+                        if (result.Success)
                         {
-                            operationResult.Merge(doc);
+                            Document doc = new Document(((DataOperationResult)result.Response.Data).Result);
+                            if (doc["success"].ValueAsBoolean.Value)
+                            {
+                                Document results = doc["results"].ValueAsDocument;
+                                for (int j = 0; j < results["count"].ValueAsInteger; ++j)
+                                {
+                                    operationResult[i.ToString()] = new DocumentEntry(i.ToString(), results[j.ToString()].ValueType, results[j.ToString()].Value);
+                                    ++i;
+                                }
+                            }
+                            else
+                            {
+                                operationResult = doc;
+                                success = false;
+                                break;
+                            }
                         }
                     }
+
+                    if (success)
+                    {
+                        operationResult["count"] = new DocumentEntry("count", DocumentEntryType.Integer, i);
+                        operationResult = new Document("{\"success\":true,\"results\":" + operationResult.ToJson() + "}");
+                    }
+                }
+                else
+                {
+                    if (sent.Count > 0)
+                    {
+                        sent[0].BlockUntilDone();
+                        if (sent[0].Success)
+                        {
+                            operationResult = new Document(((DataOperationResult)sent[0].Response.Data).Result);
+                        }
+                    }
+                }
+
+                if (operationResult.Count == 0)
+                {
+                    operationResult = new Document("{\"success\":false,\"error\":\"Could not reach any storage nodes.\"}");
                 }
 
                 SendMessage(new Message(message, new DataOperationResult(operationResult.ToJson()), false));

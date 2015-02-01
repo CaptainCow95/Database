@@ -64,7 +64,7 @@ namespace Database.Storage
                         return new DataOperationResult("{\"success\":false,\"error\":\"Subkeys are not allowed in the add operation.\"}");
                     }
 
-                    return ProcessAddOperation(item.Value.Value as Document);
+                    return ProcessAddOperation(item.Value.ValueAsDocument);
 
                 case "update":
                     if (doc.CheckForSubkeys())
@@ -72,7 +72,7 @@ namespace Database.Storage
                         return new DataOperationResult("{\"success\":false,\"error\":\"Subkeys are not allowed in the update operation.\"}");
                     }
 
-                    return ProcessUpdateOperation(item.Value.Value as Document);
+                    return ProcessUpdateOperation(item.Value.ValueAsDocument);
 
                 case "remove":
                     if (doc.CheckForSubkeys())
@@ -80,10 +80,10 @@ namespace Database.Storage
                         return new DataOperationResult("{\"success\":false,\"error\":\"Subkeys are not allowed in the remove operation.\"}");
                     }
 
-                    return ProcessRemoveOperation(item.Value.Value as Document);
+                    return ProcessRemoveOperation(item.Value.ValueAsDocument);
 
                 case "query":
-                    return ProcessQueryOperation(item.Value.Value as Document);
+                    return ProcessQueryOperation(item.Value.ValueAsDocument);
 
                 default:
                     return new DataOperationResult("{\"success\":false,\"error\":\"Invalid operation specified\"}");
@@ -206,21 +206,15 @@ namespace Database.Storage
                     builder.Append("{\"success\":true,\"results\":{");
 
                     int count = 0;
-                    bool first = true;
                     foreach (var result in results)
                     {
-                        if (!first)
-                        {
-                            builder.Append(",");
-                        }
-
                         builder.Append("\"" + count + "\":");
                         builder.Append(result.ToJson());
+                        builder.Append(",");
                         ++count;
-                        first = false;
                     }
 
-                    builder.Append(",\"count\":" + count);
+                    builder.Append("\"count\":" + count);
 
                     builder.Append("}}");
                     return new DataOperationResult(builder.ToString());

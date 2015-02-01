@@ -59,6 +59,14 @@ namespace Database.Common.DataOperation
         /// <summary>
         /// Initializes a new instance of the <see cref="Document"/> class.
         /// </summary>
+        public Document()
+        {
+            _valid = true;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Document"/> class.
+        /// </summary>
         /// <param name="reader">The JSON reader to initialize the document with.</param>
         internal Document(JsonTextReader reader)
         {

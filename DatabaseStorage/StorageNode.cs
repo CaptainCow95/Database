@@ -76,7 +76,7 @@ namespace Database.Storage
 
             while (Running)
             {
-                Thread.Sleep(1);
+                Thread.Sleep(100);
             }
 
             AfterStop();

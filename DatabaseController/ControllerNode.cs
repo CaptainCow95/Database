@@ -208,6 +208,7 @@ namespace Database.Controller
                             SendMessage(response);
 
                             SendStorageNodeConnectionMessage();
+                            SendQueryNodeConnectionMessage();
                         }
 
                         break;
@@ -238,6 +239,21 @@ namespace Database.Controller
                     case NodeType.Console:
                         Connections[message.Address].ConnectionEstablished(joinAttemptData.Type);
                         SendMessage(new Message(message, new JoinSuccess(Equals(Primary, Self)), false));
+                        break;
+
+                    case NodeType.Api:
+                        if (joinAttemptData.Settings != _settings.ConnectionString)
+                        {
+                            SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
+                        }
+                        else
+                        {
+                            Connections[message.Address].ConnectionEstablished(joinAttemptData.Type);
+                            SendMessage(new Message(message, new JoinSuccess(Equals(Primary, Self)), false));
+
+                            SendQueryNodeConnectionMessage();
+                        }
+
                         break;
                 }
             }
@@ -457,12 +473,41 @@ namespace Database.Controller
         }
 
         /// <summary>
-        /// Sends a <see cref="StorageNodeConnection"/> message to all active query nodes.
+        /// Sends a <see cref="NodeList"/> message to all active API nodes.
+        /// </summary>
+        private void SendQueryNodeConnectionMessage()
+        {
+            // Only do this if you are the primary controller.
+            if (!Equals(Self, Primary))
+            {
+                return;
+            }
+
+            var nodes = GetConnectedNodes();
+            NodeList data = new NodeList(nodes.Where(e => e.Item2 == NodeType.Query).Select(e => e.Item1.ConnectionName).ToList());
+
+            foreach (var item in GetConnectedNodes())
+            {
+                if (item.Item2 == NodeType.Api)
+                {
+                    SendMessage(new Message(item.Item1, data, false));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Sends a <see cref="NodeList"/> message to all active query nodes.
         /// </summary>
         private void SendStorageNodeConnectionMessage()
         {
+            // Only do this if you are the primary controller.
+            if (!Equals(Self, Primary))
+            {
+                return;
+            }
+
             var nodes = GetConnectedNodes();
-            StorageNodeConnection data = new StorageNodeConnection(nodes.Where(e => e.Item2 == NodeType.Storage).Select(e => e.Item1.ConnectionName).ToList());
+            NodeList data = new NodeList(nodes.Where(e => e.Item2 == NodeType.Storage).Select(e => e.Item1.ConnectionName).ToList());
 
             foreach (var item in GetConnectedNodes())
             {

@@ -182,7 +182,10 @@ namespace Database.Common
             {
                 _running = false;
 
-                _connectionListener.Stop();
+                if (_connectionListener != null)
+                {
+                    _connectionListener.Stop();
+                }
             }
         }
 
