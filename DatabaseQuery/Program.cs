@@ -43,7 +43,7 @@ namespace Database.Query
                 File.WriteAllText("config.xml", settings.ToString());
             }
 
-            Logger.Init(string.Empty, "Query", settings.LogLevel);
+            Logger.Init(string.Empty, "Query", settings.LogLevel, true);
 
             _node = new QueryNode(settings);
             _node.Run();

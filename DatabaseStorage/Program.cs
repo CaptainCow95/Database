@@ -43,7 +43,7 @@ namespace Database.Storage
                 File.WriteAllText("config.xml", settings.ToString());
             }
 
-            Logger.Init(string.Empty, "Storage", settings.LogLevel);
+            Logger.Init(string.Empty, "Storage", settings.LogLevel, true);
 
             _node = new StorageNode(settings);
             _node.Run();

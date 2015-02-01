@@ -137,7 +137,7 @@ namespace Database.Controller
                 File.WriteAllText("config.xml", settings.ToString());
             }
 
-            Logger.Init(string.Empty, "controller", settings.LogLevel);
+            Logger.Init(string.Empty, "controller", settings.LogLevel, true);
 
             WebInterface.Start(settings.WebInterfacePort, WebInterfaceRequestReceived);
 

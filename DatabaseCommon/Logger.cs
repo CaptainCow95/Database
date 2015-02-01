@@ -42,6 +42,11 @@ namespace Database.Common
         private static Thread _logThread;
 
         /// <summary>
+        /// A value indicating whether to also log to the console.
+        /// </summary>
+        private static bool _logToConsole;
+
+        /// <summary>
         /// A value indicating whether the logging system is running.
         /// </summary>
         private static bool _running = true;
@@ -64,11 +69,13 @@ namespace Database.Common
         /// <param name="logLocation">The location to write the log file to.</param>
         /// <param name="logPrefix">The name of the log file minus the extension.</param>
         /// <param name="logLevel">The level at which messages will be logged.</param>
-        public static void Init(string logLocation, string logPrefix, LogLevel logLevel)
+        /// <param name="logToScreen">Whether to also log to the console.</param>
+        public static void Init(string logLocation, string logPrefix, LogLevel logLevel, bool logToConsole)
         {
             _logLocation = logLocation;
             _logPrefix = logPrefix;
             _logLevel = logLevel;
+            _logToConsole = logToConsole;
 
             _logThread = new Thread(LogThreadRun);
             _logThread.Start();
@@ -117,6 +124,11 @@ namespace Database.Common
             }
 
             File.AppendAllText(Path.Combine(_logLocation, _logPrefix + ".log"), text.ToString());
+
+            if (_logToConsole)
+            {
+                Console.Write(text.ToString());
+            }
         }
 
         /// <summary>
