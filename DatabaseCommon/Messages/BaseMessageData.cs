@@ -55,6 +55,9 @@ namespace Database.Common.Messages
                 case MessageType.NodeList:
                     return new NodeList(data, index);
 
+                case MessageType.ChunkListUpdate:
+                    return new ChunkListUpdate(data, index);
+
                 default:
                     throw new Exception("Message type id not found: " + messageTypeIdConverted);
             }

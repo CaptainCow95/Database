@@ -32,7 +32,7 @@ namespace Database.Common.DataOperation
                         _documentId = new ObjectId(doc["documentId"].ValueAsString);
                         _valid = true;
                     }
-                    catch (ArgumentException)
+                    catch (Exception)
                     {
                         // invalid, stop processing and return since valid starts as false.
                         return;

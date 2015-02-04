@@ -159,10 +159,7 @@ namespace Database.Common
 
             lock (_connections)
             {
-                foreach (var item in _connections)
-                {
-                    list.Add(new Tuple<NodeDefinition, NodeType>(item.Key, item.Value.NodeType));
-                }
+                list.AddRange(_connections.Select(item => new Tuple<NodeDefinition, NodeType>(item.Key, item.Value.NodeType)));
             }
 
             return list.AsReadOnly();
@@ -220,7 +217,8 @@ namespace Database.Common
         /// Called when a connection is lost.
         /// </summary>
         /// <param name="node">The connection that was lost.</param>
-        protected abstract void ConnectionLost(NodeDefinition node);
+        /// <param name="type">The node type that was lost.</param>
+        protected abstract void ConnectionLost(NodeDefinition node, NodeType type);
 
         /// <summary>
         /// Called when a message a received.
@@ -297,7 +295,8 @@ namespace Database.Common
         /// <param name="node">The connection that was lost.</param>
         private void ConnectionLostHandler(object node)
         {
-            ConnectionLost((NodeDefinition)node);
+            var item = (Tuple<NodeDefinition, NodeType>)node;
+            ConnectionLost(item.Item1, item.Item2);
         }
 
         /// <summary>
@@ -395,14 +394,14 @@ namespace Database.Common
                     }
                 }
 
-                List<NodeDefinition> connectionsToRemove = new List<NodeDefinition>();
+                List<Tuple<NodeDefinition, NodeType>> connectionsToRemove = new List<Tuple<NodeDefinition, NodeType>>();
                 lock (_connections)
                 {
                     foreach (var connection in _connections)
                     {
                         if (!connection.Value.Client.Connected || (now - connection.Value.LastActiveTime).TotalSeconds > ConnectionTimeout || connection.Value.Status == ConnectionStatus.Disconnected)
                         {
-                            connectionsToRemove.Add(connection.Key);
+                            connectionsToRemove.Add(new Tuple<NodeDefinition, NodeType>(connection.Key, connection.Value.NodeType));
                         }
                     }
 
@@ -410,9 +409,9 @@ namespace Database.Common
                     {
                         foreach (var connection in connectionsToRemove)
                         {
-                            Logger.Log("Connection lost to " + connection.ConnectionName, LogLevel.Info);
-                            _connections.Remove(connection);
-                            _messagesReceived.Remove(connection);
+                            Logger.Log("Connection lost to " + connection.Item1.ConnectionName, LogLevel.Info);
+                            _connections.Remove(connection.Item1);
+                            _messagesReceived.Remove(connection.Item1);
                             ThreadPool.QueueUserWorkItem(ConnectionLostHandler, connection);
                         }
                     }

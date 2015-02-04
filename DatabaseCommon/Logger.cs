@@ -69,7 +69,7 @@ namespace Database.Common
         /// <param name="logLocation">The location to write the log file to.</param>
         /// <param name="logPrefix">The name of the log file minus the extension.</param>
         /// <param name="logLevel">The level at which messages will be logged.</param>
-        /// <param name="logToScreen">Whether to also log to the console.</param>
+        /// <param name="logToConsole">Whether to also log to the console.</param>
         public static void Init(string logLocation, string logPrefix, LogLevel logLevel, bool logToConsole)
         {
             _logLocation = logLocation;

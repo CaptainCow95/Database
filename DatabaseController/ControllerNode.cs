@@ -1,4 +1,5 @@
 ﻿using Database.Common;
+using Database.Common.DataOperation;
 using Database.Common.Messages;
 using System;
 using System.Collections.Generic;
@@ -12,6 +13,11 @@ namespace Database.Controller
     /// </summary>
     public class ControllerNode : Node
     {
+        /// <summary>
+        /// The list of where the various database chunks are located.
+        /// </summary>
+        private List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>> _chunkList = new List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>>();
+
         /// <summary>
         /// A list of the controller nodes contained in the connection string.
         /// </summary>
@@ -105,29 +111,46 @@ namespace Database.Controller
         }
 
         /// <inheritdoc />
-        protected override void ConnectionLost(NodeDefinition node)
+        protected override void ConnectionLost(NodeDefinition node, NodeType type)
         {
-            if (Equals(Primary, node))
+            if (type == NodeType.Controller)
             {
-                Logger.Log("Primary controller unreachable, searching for new primary.", LogLevel.Info);
-                Primary = null;
-            }
-
-            // start at 1 because GetConnectedNodes doesn't include the current node.
-            int controllerActiveCount = 1;
-            var connectedNodes = GetConnectedNodes();
-            foreach (var def in _controllerNodes)
-            {
-                if (connectedNodes.Any(e => Equals(e.Item1, def)))
+                if (Equals(Primary, node))
                 {
-                    controllerActiveCount++;
+                    Logger.Log("Primary controller unreachable, searching for new primary.", LogLevel.Info);
+                    Primary = null;
+                }
+
+                // start at 1 because GetConnectedNodes doesn't include the current node.
+                int controllerActiveCount = 1;
+                var connectedNodes = GetConnectedNodes();
+                foreach (var def in _controllerNodes)
+                {
+                    if (connectedNodes.Any(e => Equals(e.Item1, def)))
+                    {
+                        controllerActiveCount++;
+                    }
+                }
+
+                if (controllerActiveCount <= _controllerNodes.Count / 2)
+                {
+                    Logger.Log("Not enough connected nodes to remain primary.", LogLevel.Info);
+                    Primary = null;
                 }
             }
-
-            if (controllerActiveCount <= _controllerNodes.Count / 2)
+            else if (type == NodeType.Storage)
             {
-                Logger.Log("Not enough connected nodes to remain primary.", LogLevel.Info);
-                Primary = null;
+                _chunkList.RemoveAll(e => Equals(e.Item3, node));
+
+                if (_chunkList.Count == 0)
+                {
+                    var newStorageNode = GetConnectedNodes().Where(e => e.Item2 == NodeType.Storage).Select(e => e.Item1).FirstOrDefault();
+                    if (!Equals(newStorageNode, default(NodeDefinition)))
+                    {
+                        _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(new ChunkMarker(ChunkMarkerType.Start), new ChunkMarker(ChunkMarkerType.End), newStorageNode));
+                        SendChunkList();
+                    }
+                }
             }
         }
 
@@ -185,6 +208,11 @@ namespace Database.Controller
                                 Logger.Log("Connection to primary controller established, setting primary to " + message.Address.ConnectionName, LogLevel.Info);
                                 Primary = nodeDef;
                             }
+
+                            if (Equals(Primary, Self))
+                            {
+                                SendChunkList();
+                            }
                         }
 
                         break;
@@ -209,6 +237,11 @@ namespace Database.Controller
 
                             SendStorageNodeConnectionMessage();
                             SendQueryNodeConnectionMessage();
+
+                            if (Equals(Primary, Self))
+                            {
+                                SendChunkList();
+                            }
                         }
 
                         break;
@@ -229,9 +262,21 @@ namespace Database.Controller
                                 Address = nodeDef
                             };
 
+                            bool updatedChunkList = false;
+                            if (Equals(Primary, Self) && _chunkList.Count == 0)
+                            {
+                                _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(new ChunkMarker(ChunkMarkerType.Start), new ChunkMarker(ChunkMarkerType.End), nodeDef));
+                                updatedChunkList = true;
+                            }
+
                             SendMessage(response);
 
                             SendStorageNodeConnectionMessage();
+
+                            if (updatedChunkList)
+                            {
+                                SendChunkList();
+                            }
                         }
 
                         break;
@@ -323,14 +368,7 @@ namespace Database.Controller
 
                         op.BlockUntilDone();
 
-                        if (op.Success)
-                        {
-                            SendMessage(new Message(message, op.Response.Data, false));
-                        }
-                        else
-                        {
-                            SendMessage(new Message(message, new DataOperationResult("{\"success\":false,\"error\":\"Message to the query node failed.\"}"), false));
-                        }
+                        SendMessage(new Message(message, op.Success ? op.Response.Data : new DataOperationResult(ErrorCodes.FailedMessage, "Message to the query node failed."), false));
 
                         break;
                     }
@@ -338,8 +376,12 @@ namespace Database.Controller
 
                 if (!found)
                 {
-                    SendMessage(new Message(message, new DataOperationResult("{\"success\":false,\"error\":\"Could not reach a query node.\"}"), false));
+                    SendMessage(new Message(message, new DataOperationResult(ErrorCodes.FailedMessage, "Could not reach a query node."), false));
                 }
+            }
+            else if (message.Data is ChunkListUpdate)
+            {
+                _chunkList = ((ChunkListUpdate)message.Data).ChunkList;
             }
         }
 
@@ -469,6 +511,23 @@ namespace Database.Controller
                         SendMessage(new Message(def, new PrimaryAnnouncement(), false));
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Sends a <see cref="ChunkListUpdate"/> message to all connected nodes.
+        /// </summary>
+        private void SendChunkList()
+        {
+            ChunkListUpdate update;
+            lock (_chunkList)
+            {
+                update = new ChunkListUpdate(_chunkList);
+            }
+
+            foreach (var node in GetConnectedNodes())
+            {
+                SendMessage(new Message(node.Item1, update, false));
             }
         }
 

@@ -36,7 +36,24 @@ namespace Database.Common.API
         /// <returns>The resulting document.</returns>
         public Document Add(Document doc)
         {
-            return _node.SendMessageToQuery(new Document("{\"add\":{\"document\":" + doc.ToJson() + "}}"));
+            if (doc.ContainsKey("id"))
+            {
+                return _node.SendMessageToQuery(new Document("{\"add\":{\"document\":" + doc.ToJson() + "}}"));
+            }
+
+            while (true)
+            {
+                doc["id"] = new DocumentEntry("id", DocumentEntryType.String, new ObjectId().ToString());
+                Document result = _node.SendMessageToQuery(new Document("{\"add\":{\"document\":" + doc.ToJson() + "}}"));
+                if (!result["success"].ValueAsBoolean && (ErrorCodes)Enum.Parse(typeof(ErrorCodes), result["errorcode"].ValueAsString) == ErrorCodes.InvalidId)
+                {
+                    doc["id"] = new DocumentEntry("id", DocumentEntryType.String, new ObjectId().ToString());
+                }
+                else
+                {
+                    return result;
+                }
+            }
         }
 
         /// <summary>
@@ -202,7 +219,7 @@ namespace Database.Common.API
             }
 
             /// <inheritdoc />
-            protected override void ConnectionLost(NodeDefinition node)
+            protected override void ConnectionLost(NodeDefinition node, NodeType type)
             {
             }
 

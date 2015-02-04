@@ -63,6 +63,11 @@
         /// <summary>
         /// A <see cref="NodeList"/> message.
         /// </summary>
-        NodeList = 11
+        NodeList = 11,
+
+        /// <summary>
+        /// A <see cref="ChunkListUpdate"/> message.
+        /// </summary>
+        ChunkListUpdate = 12
     }
 }

@@ -291,7 +291,7 @@ namespace Database.Common.DataOperation
                     return true;
 
                 case DocumentEntryType.Float:
-                    return a.ValueAsFloat == b.ValueAsFloat;
+                    return Math.Abs(a.ValueAsFloat - b.ValueAsFloat) < float.Epsilon;
 
                 case DocumentEntryType.Integer:
                     return a.ValueAsInteger == b.ValueAsInteger;
