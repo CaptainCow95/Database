@@ -163,11 +163,7 @@ namespace Database.Console
         {
             string op = ((CommandPartLiteral)command[1]).Value;
 
-            Message message = new Message(_connectedDef, new DataOperation(op), true)
-            {
-                ResponseTimeout = 30
-            };
-
+            Message message = new Message(_connectedDef, new DataOperation(op), true);
             SendMessage(message);
             message.BlockUntilDone();
 

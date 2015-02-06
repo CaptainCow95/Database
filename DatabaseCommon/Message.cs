@@ -9,11 +9,6 @@ namespace Database.Common
     public class Message
     {
         /// <summary>
-        /// The default amount of seconds before waiting for a response causes a timeout.
-        /// </summary>
-        private const int DefaultResponseTimeout = 30;
-
-        /// <summary>
         /// The object to lock on when giving out the next message's id.
         /// </summary>
         private static readonly object NextIdLockObject = new object();
@@ -47,11 +42,6 @@ namespace Database.Common
         /// The response to this message.
         /// </summary>
         private Message _response;
-
-        /// <summary>
-        /// The amount of seconds before waiting for a response causes a timeout.
-        /// </summary>
-        private int _responseTimeout = DefaultResponseTimeout;
 
         /// <summary>
         /// A value indicating whether the message should be sent, even if the connection has yet to be confirmed.
@@ -143,15 +133,6 @@ namespace Database.Common
         {
             get { return _response; }
             internal set { _response = value; }
-        }
-
-        /// <summary>
-        /// Gets or sets the amount of seconds before waiting for a response causes a timeout.
-        /// </summary>
-        public int ResponseTimeout
-        {
-            get { return _responseTimeout; }
-            set { _responseTimeout = value; }
         }
 
         /// <summary>

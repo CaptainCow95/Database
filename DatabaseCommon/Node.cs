@@ -375,25 +375,6 @@ namespace Database.Common
             while (_running)
             {
                 DateTime now = DateTime.UtcNow;
-                List<uint> responsesToRemove = new List<uint>();
-                lock (_waitingForResponses)
-                {
-                    foreach (var item in _waitingForResponses)
-                    {
-                        if ((now - item.Value.Item2).TotalSeconds > item.Value.Item1.ResponseTimeout)
-                        {
-                            item.Value.Item1.Status = MessageStatus.ResponseTimeout;
-                            responsesToRemove.Add(item.Key);
-                        }
-                    }
-
-                    foreach (var item in responsesToRemove)
-                    {
-                        Logger.Log("Timeout while waiting for message response from " + _waitingForResponses[item].Item1.Address.ConnectionName, LogLevel.Info);
-                        _waitingForResponses.Remove(item);
-                    }
-                }
-
                 List<Tuple<NodeDefinition, NodeType>> connectionsToRemove = new List<Tuple<NodeDefinition, NodeType>>();
                 lock (_connections)
                 {
@@ -412,6 +393,21 @@ namespace Database.Common
                             Logger.Log("Connection lost to " + connection.Item1.ConnectionName, LogLevel.Info);
                             _connections.Remove(connection.Item1);
                             _messagesReceived.Remove(connection.Item1);
+
+                            lock (_waitingForResponses)
+                            {
+                                List<uint> messagesToRemove = new List<uint>();
+                                foreach (var item in _waitingForResponses)
+                                {
+                                    if (Equals(item.Value.Item1.Address, connection.Item1))
+                                    {
+                                        messagesToRemove.Add(item.Key);
+                                    }
+                                }
+
+                                messagesToRemove.ForEach(e => _waitingForResponses.Remove(e));
+                            }
+
                             ThreadPool.QueueUserWorkItem(ConnectionLostHandler, connection);
                         }
                     }
@@ -576,18 +572,10 @@ namespace Database.Common
 
             lock (_connections)
             {
-                if ((_connections.ContainsKey(message.Address) &&
-                     _connections[message.Address].Status == ConnectionStatus.Connected) ||
-                    message.SendWithoutConfirmation)
+                if (_connections.ContainsKey(message.Address) && (_connections[message.Address].Status == ConnectionStatus.Connected || message.SendWithoutConfirmation))
                 {
                     try
                     {
-                        if (!_connections.ContainsKey(message.Address))
-                        {
-                            message.Status = MessageStatus.SendingFailure;
-                            return;
-                        }
-
                         if (message.WaitingForResponse)
                         {
                             lock (_waitingForResponses)
@@ -607,6 +595,7 @@ namespace Database.Common
                     catch
                     {
                         message.Status = MessageStatus.SendingFailure;
+                        _connections[message.Address].Disconnect();
 
                         lock (_waitingForResponses)
                         {
@@ -617,6 +606,11 @@ namespace Database.Common
                 else
                 {
                     message.Status = MessageStatus.SendingFailure;
+
+                    if (_connections.ContainsKey(message.Address))
+                    {
+                        _connections[message.Address].Disconnect();
+                    }
                 }
             }
         }

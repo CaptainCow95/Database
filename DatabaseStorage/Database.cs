@@ -86,7 +86,7 @@ namespace Database.Storage
                     }
                 }
 
-                var chunksToRemove = _chunks.Where(item => !chunks.Any(e => Equals(e.Item1, item.Start) && Equals(e.Item2, item.End)));
+                var chunksToRemove = _chunks.Where(item => !chunks.Any(e => Equals(e.Item1, item.Start) && Equals(e.Item2, item.End))).ToList();
                 foreach (var item in chunksToRemove)
                 {
                     _chunks.Remove(item);

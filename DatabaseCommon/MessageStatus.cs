@@ -36,11 +36,6 @@
         ResponseReceived,
 
         /// <summary>
-        /// The message timed out while waiting for a response.
-        /// </summary>
-        ResponseTimeout,
-
-        /// <summary>
         /// The message was received from another node.
         /// </summary>
         Received
