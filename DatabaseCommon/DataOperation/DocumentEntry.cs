@@ -99,15 +99,31 @@ namespace Database.Common.DataOperation
         /// </summary>
         public List<DocumentEntry> ValueAsArray
         {
-            get { return _value as List<DocumentEntry>; }
+            get
+            {
+                if (_valueType == DocumentEntryType.Array)
+                {
+                    return (List<DocumentEntry>)_value;
+                }
+
+                throw new DataTypeException();
+            }
         }
 
         /// <summary>
-        /// Gets the value as a boolean.
+        /// Gets a value indicating whether the value is true or false.
         /// </summary>
-        public bool? ValueAsBoolean
+        public bool ValueAsBoolean
         {
-            get { return _value as bool?; }
+            get
+            {
+                if (_valueType == DocumentEntryType.Boolean)
+                {
+                    return Convert.ToBoolean(_value);
+                }
+
+                throw new DataTypeException();
+            }
         }
 
         /// <summary>
@@ -115,23 +131,47 @@ namespace Database.Common.DataOperation
         /// </summary>
         public Document ValueAsDocument
         {
-            get { return _value as Document; }
+            get
+            {
+                if (_valueType == DocumentEntryType.Document)
+                {
+                    return (Document)_value;
+                }
+
+                throw new DataTypeException();
+            }
         }
 
         /// <summary>
         /// Gets the value as a float.
         /// </summary>
-        public float? ValueAsFloat
+        public float ValueAsFloat
         {
-            get { return _valueType == DocumentEntryType.Float ? (float?)Convert.ToSingle(_value) : null; }
+            get
+            {
+                if (_valueType == DocumentEntryType.Float)
+                {
+                    return Convert.ToSingle(_value);
+                }
+
+                throw new DataTypeException();
+            }
         }
 
         /// <summary>
         /// Gets the value as an integer.
         /// </summary>
-        public int? ValueAsInteger
+        public int ValueAsInteger
         {
-            get { return _valueType == DocumentEntryType.Integer ? (int?)Convert.ToInt32(_value) : null; }
+            get
+            {
+                if (_valueType == DocumentEntryType.Integer)
+                {
+                    return Convert.ToInt32(_value);
+                }
+
+                throw new DataTypeException();
+            }
         }
 
         /// <summary>
@@ -139,7 +179,15 @@ namespace Database.Common.DataOperation
         /// </summary>
         public string ValueAsString
         {
-            get { return _value as string; }
+            get
+            {
+                if (_valueType == DocumentEntryType.String)
+                {
+                    return Convert.ToString(_value);
+                }
+
+                throw new DataTypeException();
+            }
         }
 
         /// <summary>

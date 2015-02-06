@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading;
 
 namespace Database.Storage
 {
@@ -14,28 +13,9 @@ namespace Database.Storage
     public class Database
     {
         /// <summary>
-        /// The database's data.
+        /// The chunks contained by this database.
         /// </summary>
-        private readonly SortedDictionary<ObjectId, Document> _data = new SortedDictionary<ObjectId, Document>();
-
-        /// <summary>
-        /// The system's id.
-        /// </summary>
-        private readonly Guid _systemId = Guid.NewGuid();
-
-        /// <summary>
-        /// The counter for generating new <see cref="ObjectId"/>s.
-        /// </summary>
-        private int _idCounter;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Database"/> class.
-        /// </summary>
-        public Database()
-        {
-            Random rand = new Random();
-            _idCounter = rand.Next();
-        }
+        private readonly List<DatabaseChunk> _chunks = new List<DatabaseChunk>();
 
         /// <summary>
         /// Processes an operation.
@@ -47,12 +27,12 @@ namespace Database.Storage
             Document doc = new Document(operation.Json);
             if (!doc.Valid)
             {
-                return new DataOperationResult("{\"success\":false,\"error\":\"Invalid document.\"}");
+                return new DataOperationResult(ErrorCodes.InvalidDocument, "The document is invalid.");
             }
 
             if (doc.Count != 1)
             {
-                return new DataOperationResult("{\"success\":false,\"error\":\"Must have one and only one operation at a time.\"}");
+                return new DataOperationResult(ErrorCodes.MultipleOperations, "Must have one and only one operation at a time.");
             }
 
             var item = doc.First();
@@ -61,7 +41,7 @@ namespace Database.Storage
                 case "add":
                     if (doc.CheckForSubkeys())
                     {
-                        return new DataOperationResult("{\"success\":false,\"error\":\"Subkeys are not allowed in the add operation.\"}");
+                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the add operation.");
                     }
 
                     return ProcessAddOperation(item.Value.ValueAsDocument);
@@ -69,7 +49,7 @@ namespace Database.Storage
                 case "update":
                     if (doc.CheckForSubkeys())
                     {
-                        return new DataOperationResult("{\"success\":false,\"error\":\"Subkeys are not allowed in the update operation.\"}");
+                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the update operation.");
                     }
 
                     return ProcessUpdateOperation(item.Value.ValueAsDocument);
@@ -77,7 +57,7 @@ namespace Database.Storage
                 case "remove":
                     if (doc.CheckForSubkeys())
                     {
-                        return new DataOperationResult("{\"success\":false,\"error\":\"Subkeys are not allowed in the remove operation.\"}");
+                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the remove operation.");
                     }
 
                     return ProcessRemoveOperation(item.Value.ValueAsDocument);
@@ -86,7 +66,31 @@ namespace Database.Storage
                     return ProcessQueryOperation(item.Value.ValueAsDocument);
 
                 default:
-                    return new DataOperationResult("{\"success\":false,\"error\":\"Invalid operation specified\"}");
+                    return new DataOperationResult(ErrorCodes.InvalidDocument, "Invalid operation specified.");
+            }
+        }
+
+        /// <summary>
+        /// Resets the chunk list if any changes are needed.
+        /// </summary>
+        /// <param name="chunks">The new chunk list.</param>
+        public void ResetChunkList(List<Tuple<ChunkMarker, ChunkMarker>> chunks)
+        {
+            lock (_chunks)
+            {
+                foreach (var item in chunks)
+                {
+                    if (!_chunks.Any(e => Equals(e.Start, item.Item1) && Equals(e.End, item.Item2)))
+                    {
+                        _chunks.Add(new DatabaseChunk(item.Item1, item.Item2));
+                    }
+                }
+
+                var chunksToRemove = _chunks.Where(item => !chunks.Any(e => Equals(e.Item1, item.Start) && Equals(e.Item2, item.End)));
+                foreach (var item in chunksToRemove)
+                {
+                    _chunks.Remove(item);
+                }
             }
         }
 
@@ -101,14 +105,16 @@ namespace Database.Storage
         }
 
         /// <summary>
-        /// Generates a new <see cref="ObjectId"/>.
+        /// Gets the chunk the specified id belongs in.
         /// </summary>
-        /// <returns>A new <see cref="ObjectId"/>.</returns>
-        private ObjectId GenerateObjectId()
+        /// <param name="id">The id to search for.</param>
+        /// <returns>The chunk the specified id belongs in.</returns>
+        private DatabaseChunk GetChunk(ObjectId id)
         {
-            ObjectId id = new ObjectId(_systemId, _idCounter);
-            Interlocked.Increment(ref _idCounter);
-            return id;
+            lock (_chunks)
+            {
+                return _chunks.Single(e => ChunkMarker.IsBetween(e.Start, e.End, id.ToString()));
+            }
         }
 
         /// <summary>
@@ -120,57 +126,26 @@ namespace Database.Storage
         {
             AddOperation op = new AddOperation(doc);
 
-            if (op.Valid)
+            if (!op.Valid)
             {
-                // Check if the document already has an id assigned.
-                if (op.Document.ContainsKey("id"))
-                {
-                    // Make sure the id is an actual object id. (Just needs to be a 20 digit hex number)
-                    if (op.Document["id"].ValueType == DocumentEntryType.String)
-                    {
-                        ObjectId id;
-                        try
-                        {
-                            id = new ObjectId(op.Document["id"].ValueAsString);
-                        }
-                        catch (ArgumentException)
-                        {
-                            return new DataOperationResult("{\"success\":false,\"error\":\"Document contains an id field that is not an ObjectId.\"}");
-                        }
-
-                        lock (_data)
-                        {
-                            if (_data.ContainsKey(id))
-                            {
-                                return new DataOperationResult("{\"success\":false,\"error\":\"The database already contains a document with the specified id.\"}");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        return new DataOperationResult("{\"success\":false,\"error\":\"Document contains an id field that is not an ObjectId.\"}");
-                    }
-                }
-                else
-                {
-                    // Generate an id for the document.
-                    var id = GenerateObjectId();
-                    lock (_data)
-                    {
-                        while (_data.ContainsKey(id))
-                        {
-                            id = GenerateObjectId();
-                        }
-
-                        op.Document["id"] = new DocumentEntry("id", DocumentEntryType.String, id.ToString());
-                        _data.Add(id, op.Document);
-                    }
-                }
-
-                return new DataOperationResult("{\"success\":true,\"document\":" + op.Document.ToJson() + "}");
+                return op.ErrorMessage;
             }
 
-            return new DataOperationResult("{\"success\":false,\"error\":\"Syntax error while trying to parse add command.\"}");
+            bool success = false;
+            lock (_chunks)
+            {
+                if (GetChunk(op.Id).Add(op.Id, op.Document))
+                {
+                    success = true;
+                }
+            }
+
+            if (success)
+            {
+                return new DataOperationResult(op.Document);
+            }
+
+            return new DataOperationResult(ErrorCodes.InvalidId, "A key with the specified ObjectId already exists.");
         }
 
         /// <summary>
@@ -182,50 +157,38 @@ namespace Database.Storage
         {
             QueryOperation op = new QueryOperation(doc);
 
-            if (op.Valid)
+            if (!op.Valid)
             {
-                try
+                return op.ErrorMessage;
+            }
+
+            List<QueryItem> queryItems = BuildQueryItems(op.Fields);
+
+            List<Document> results = new List<Document>();
+            lock (_chunks)
+            {
+                foreach (var item in _chunks)
                 {
-                    List<QueryItem> queryItems = BuildQueryItems(op.Fields);
-
-                    List<Document> results = new List<Document>();
-                    lock (_data)
-                    {
-                        foreach (var item in _data)
-                        {
-                            bool matches = queryItems.All(query => query.Match(item.Value));
-
-                            if (matches)
-                            {
-                                results.Add(item.Value);
-                            }
-                        }
-                    }
-
-                    StringBuilder builder = new StringBuilder();
-                    builder.Append("{\"success\":true,\"results\":{");
-
-                    int count = 0;
-                    foreach (var result in results)
-                    {
-                        builder.Append("\"" + count + "\":");
-                        builder.Append(result.ToJson());
-                        builder.Append(",");
-                        ++count;
-                    }
-
-                    builder.Append("\"count\":" + count);
-
-                    builder.Append("}}");
-                    return new DataOperationResult(builder.ToString());
-                }
-                catch (QueryException e)
-                {
-                    return new DataOperationResult("{\"success\":false,\"error\":\"" + e.Message.Replace("\"", "\\\"") + "\"");
+                    results.AddRange(item.Query(queryItems));
                 }
             }
 
-            return new DataOperationResult("{\"success\":false,\"error\":\"Syntax error while trying to parse query command.\"}");
+            StringBuilder builder = new StringBuilder();
+            builder.Append("{");
+
+            int count = 0;
+            foreach (var result in results)
+            {
+                builder.Append("\"" + count + "\":");
+                builder.Append(result.ToJson());
+                builder.Append(",");
+                ++count;
+            }
+
+            builder.Append("\"count\":" + count);
+
+            builder.Append("}");
+            return new DataOperationResult(new Document(builder.ToString()));
         }
 
         /// <summary>
@@ -237,19 +200,17 @@ namespace Database.Storage
         {
             RemoveOperation op = new RemoveOperation(doc);
 
-            if (op.Valid)
+            if (!op.Valid)
             {
-                lock (_data)
-                {
-                    _data.Remove(op.DocumentId);
-                }
-            }
-            else
-            {
-                return new DataOperationResult("{\"success\":false,\"error\":\"Syntax error while trying to parse remove command.\"}");
+                return op.ErrorMessage;
             }
 
-            return new DataOperationResult("{\"success\":true}");
+            lock (_chunks)
+            {
+                GetChunk(op.DocumentId).Remove(op.DocumentId);
+            }
+
+            return new DataOperationResult(new Document());
         }
 
         /// <summary>
@@ -260,32 +221,36 @@ namespace Database.Storage
         private DataOperationResult ProcessUpdateOperation(Document doc)
         {
             UpdateOperation op = new UpdateOperation(doc);
-            if (op.UpdateFields.ContainsKey("id") || op.RemoveFields.Contains("id"))
+            if (!op.Valid)
             {
-                return new DataOperationResult("{\"success\":false,\"error\":\"Cannot modify the id value of a document after it is created.\"}");
+                return op.ErrorMessage;
             }
 
-            if (op.Valid)
+            var success = false;
+            Document toUpdate = null;
+            lock (_chunks)
             {
-                lock (_data)
-                {
-                    if (_data.ContainsKey(op.DocumentId))
-                    {
-                        Document toUpdate = _data[op.DocumentId];
-                        toUpdate.Merge(op.UpdateFields);
-                        foreach (var field in op.RemoveFields)
-                        {
-                            toUpdate.RemoveField(field);
-                        }
+                var chunk = GetChunk(op.DocumentId);
 
-                        return new DataOperationResult("{\"success\":true,\"document\":" + toUpdate.ToJson() + "}");
+                if (chunk.ContainsKey(op.DocumentId))
+                {
+                    toUpdate = chunk[op.DocumentId];
+                    toUpdate.Merge(op.UpdateFields);
+                    foreach (var field in op.RemoveFields)
+                    {
+                        toUpdate.RemoveField(field);
                     }
 
-                    return new DataOperationResult("{\"success\":false,\"error\":\"Document not found.\"}");
+                    success = true;
                 }
             }
 
-            return new DataOperationResult("{\"success\":false,\"error\":\"Syntax error while trying to parse update command.\"}");
+            if (!success)
+            {
+                return new DataOperationResult(ErrorCodes.InvalidId, "The specified document was not found.");
+            }
+
+            return new DataOperationResult(toUpdate);
         }
     }
 }

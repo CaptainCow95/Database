@@ -51,9 +51,13 @@
     <Compile Include="ConnectionStatus.cs" />
     <Compile Include="ControllerNodeSettings.cs" />
     <Compile Include="DataOperation\AddOperation.cs" />
+    <Compile Include="DataOperation\ChunkMarker.cs" />
+    <Compile Include="DataOperation\ChunkMarkerType.cs" />
+    <Compile Include="DataOperation\DataTypeException.cs" />
     <Compile Include="DataOperation\Document.cs" />
     <Compile Include="DataOperation\DocumentEntry.cs" />
     <Compile Include="DataOperation\DocumentEntryType.cs" />
+    <Compile Include="DataOperation\ErrorCodes.cs" />
     <Compile Include="DataOperation\InvalidDocumentException.cs" />
     <Compile Include="DataOperation\QueryException.cs" />
     <Compile Include="DataOperation\QueryItem.cs" />
@@ -62,6 +66,7 @@
     <Compile Include="DataOperation\UpdateOperation.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="LogLevel.cs" />
+    <Compile Include="Messages\ChunkListUpdate.cs" />
     <Compile Include="Messages\DataOperation.cs" />
     <Compile Include="Messages\DataOperationResult.cs" />
     <Compile Include="Messages\Heartbeat.cs" />

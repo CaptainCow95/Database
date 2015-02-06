@@ -1,4 +1,7 @@
-﻿namespace Database.Common.Messages
+﻿using Database.Common.DataOperation;
+using System;
+
+namespace Database.Common.Messages
 {
     /// <summary>
     /// Represents the result of a <see cref="DataOperation"/> message.
@@ -13,10 +16,29 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="DataOperationResult"/> class.
         /// </summary>
-        /// <param name="result">The result of the operation.</param>
-        public DataOperationResult(string result)
+        /// <param name="doc">The result of the operation.</param>
+        public DataOperationResult(Document doc)
         {
-            _result = result;
+            _result = "{\"success\":true,\"result\":" + doc.ToJson() + "}";
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DataOperationResult"/> class.
+        /// </summary>
+        /// <param name="errorCode">The error code to send.</param>
+        /// <param name="errorDescription">The error description to send.</param>
+        public DataOperationResult(ErrorCodes errorCode, string errorDescription)
+        {
+            _result = "{\"success\":false,\"errorcode\":\"" + Enum.GetName(typeof(ErrorCodes), errorCode) + "\",\"errordescription\":\"" + errorDescription + "\"}";
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DataOperationResult"/> class.
+        /// </summary>
+        /// <param name="previousResult">The <see cref="DataOperationResult"/> to copy values from.</param>
+        public DataOperationResult(DataOperationResult previousResult)
+        {
+            _result = previousResult._result;
         }
 
         /// <summary>

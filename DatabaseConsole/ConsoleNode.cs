@@ -54,7 +54,7 @@ namespace Database.Console
         }
 
         /// <inheritdoc />
-        protected override void ConnectionLost(NodeDefinition node)
+        protected override void ConnectionLost(NodeDefinition node, NodeType type)
         {
             _connected = false;
         }
@@ -171,14 +171,7 @@ namespace Database.Console
             SendMessage(message);
             message.BlockUntilDone();
 
-            if (message.Success)
-            {
-                System.Console.WriteLine(((DataOperationResult)message.Response.Data).Result);
-            }
-            else
-            {
-                System.Console.WriteLine("Message failure.");
-            }
+            System.Console.WriteLine(message.Success ? ((DataOperationResult)message.Response.Data).Result : "Message failure.");
         }
     }
 }

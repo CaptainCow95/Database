@@ -1,6 +1,9 @@
 ﻿using Database.Common;
+using Database.Common.DataOperation;
 using Database.Common.Messages;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 
 namespace Database.Storage
@@ -83,7 +86,7 @@ namespace Database.Storage
         }
 
         /// <inheritdoc />
-        protected override void ConnectionLost(NodeDefinition node)
+        protected override void ConnectionLost(NodeDefinition node, NodeType type)
         {
             if (Equals(Primary, node))
             {
@@ -122,6 +125,12 @@ namespace Database.Storage
             {
                 DataOperationResult result = _database.ProcessOperation((DataOperation)message.Data);
                 SendMessage(new Message(message, result, false));
+            }
+            else if (message.Data is ChunkListUpdate)
+            {
+                var chunkList = ((ChunkListUpdate)message.Data).ChunkList;
+
+                _database.ResetChunkList(chunkList.Where(e => Equals(e.Item3, Self)).Select(e => new Tuple<ChunkMarker, ChunkMarker>(e.Item1, e.Item2)).ToList());
             }
         }
 

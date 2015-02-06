@@ -182,6 +182,19 @@ namespace Database.Common.DataOperation
         }
 
         /// <inheritdoc />
+        public override bool Equals(object obj)
+        {
+            var doc = obj as Document;
+            return doc != null && Equals(_data, doc._data);
+        }
+
+        /// <inheritdoc />
+        public override int GetHashCode()
+        {
+            return _data.GetHashCode();
+        }
+
+        /// <inheritdoc />
         IEnumerator<KeyValuePair<string, DocumentEntry>> IEnumerable<KeyValuePair<string, DocumentEntry>>.GetEnumerator()
         {
             return _data.GetEnumerator();

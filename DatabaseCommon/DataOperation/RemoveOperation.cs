@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Database.Common.Messages;
+using System;
 
 namespace Database.Common.DataOperation
 {
@@ -13,6 +14,11 @@ namespace Database.Common.DataOperation
         private readonly ObjectId _documentId;
 
         /// <summary>
+        /// The error message to send if the operation is not valid.
+        /// </summary>
+        private readonly DataOperationResult _errorMessage = null;
+
+        /// <summary>
         /// A value indicating whether this operation is syntactically valid.
         /// </summary>
         private readonly bool _valid = false;
@@ -23,22 +29,41 @@ namespace Database.Common.DataOperation
         /// <param name="doc">The document representing the operation.</param>
         public RemoveOperation(Document doc)
         {
-            if (doc != null && doc.Count == 1)
+            if (doc == null)
             {
-                if (doc.ContainsKey("documentId") && doc["documentId"].ValueType == DocumentEntryType.String)
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The value under \"remove\" is not a valid document.");
+                return;
+            }
+
+            if (doc.ContainsKey("documentId") && doc["documentId"].ValueType == DocumentEntryType.String)
+            {
+                try
                 {
-                    try
-                    {
-                        _documentId = new ObjectId(doc["documentId"].ValueAsString);
-                        _valid = true;
-                    }
-                    catch (ArgumentException)
-                    {
-                        // invalid, stop processing and return since valid starts as false.
-                        return;
-                    }
+                    _documentId = new ObjectId(doc["documentId"].ValueAsString);
+                }
+                catch (Exception)
+                {
+                    _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The \"documentId\" field is not a valid ObjectId.");
+                    return;
                 }
             }
+            else if (doc.ContainsKey("documentId"))
+            {
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The \"documentId\" field is not a string value.");
+                return;
+            }
+            else
+            {
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The \"documentId\" field is required for the update operation.");
+                return;
+            }
+
+            if (doc.Count != 1)
+            {
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The number of found fields in the \"remove\" document does not match the number of valid fields.");
+            }
+
+            _valid = true;
         }
 
         /// <summary>
@@ -47,6 +72,14 @@ namespace Database.Common.DataOperation
         public ObjectId DocumentId
         {
             get { return _documentId; }
+        }
+
+        /// <summary>
+        /// Gets the error message to send if the operation is not valid.
+        /// </summary>
+        public DataOperationResult ErrorMessage
+        {
+            get { return _errorMessage; }
         }
 
         /// <summary>
