@@ -1,10 +1,17 @@
-﻿namespace Database.Common.DataOperation
+﻿using Database.Common.Messages;
+
+namespace Database.Common.DataOperation
 {
     /// <summary>
     /// Represents a query operation.
     /// </summary>
     public class QueryOperation
     {
+        /// <summary>
+        /// The error message to send if the operation is not valid.
+        /// </summary>
+        private readonly DataOperationResult _errorMessage = null;
+
         /// <summary>
         /// The fields to be queried.
         /// </summary>
@@ -21,25 +28,44 @@
         /// <param name="doc">The document representing the operation.</param>
         public QueryOperation(Document doc)
         {
-            if (doc != null)
+            if (doc == null)
             {
-                int foundFields = 0;
-                if (doc.ContainsKey("fields") && doc["fields"].ValueType == DocumentEntryType.Document)
-                {
-                    ++foundFields;
-                    _fields = doc["fields"].ValueAsDocument;
-                }
-                else
-                {
-                    // required field.
-                    return;
-                }
-
-                if (foundFields == doc.Count)
-                {
-                    _valid = true;
-                }
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The value under \"query\" is not a valid document.");
+                return;
             }
+
+            int foundFields = 0;
+            if (doc.ContainsKey("fields") && doc["fields"].ValueType == DocumentEntryType.Document)
+            {
+                ++foundFields;
+                _fields = doc["fields"].ValueAsDocument;
+            }
+            else if (doc.ContainsKey("fields"))
+            {
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The \"fields\" field is present, but is not a valid document.");
+                return;
+            }
+            else
+            {
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The \"fields\" field is required for the query operation.");
+                return;
+            }
+
+            if (foundFields != doc.Count)
+            {
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The number of found fields in the \"query\" document does not match the number of valid fields.");
+                return;
+            }
+
+            _valid = true;
+        }
+
+        /// <summary>
+        /// Gets the error message to send if the operation is not valid.
+        /// </summary>
+        public DataOperationResult ErrorMessage
+        {
+            get { return _errorMessage; }
         }
 
         /// <summary>

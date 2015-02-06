@@ -84,6 +84,7 @@ namespace Database.Controller
                 return;
             }
 
+            // If you get a JoinFailure from any other node, stop because this node's settings are wrong.
             foreach (var def in _controllerNodes)
             {
                 if (!Equals(def, Self) && !ConnectToController(def))
@@ -122,15 +123,8 @@ namespace Database.Controller
                 }
 
                 // start at 1 because GetConnectedNodes doesn't include the current node.
-                int controllerActiveCount = 1;
                 var connectedNodes = GetConnectedNodes();
-                foreach (var def in _controllerNodes)
-                {
-                    if (connectedNodes.Any(e => Equals(e.Item1, def)))
-                    {
-                        controllerActiveCount++;
-                    }
-                }
+                int controllerActiveCount = 1 + _controllerNodes.Count(def => connectedNodes.Any(e => Equals(e.Item1, def)));
 
                 if (controllerActiveCount <= _controllerNodes.Count / 2)
                 {
@@ -440,15 +434,8 @@ namespace Database.Controller
             bool becomePrimary = true;
 
             // start at 1 because GetConnectedNodes doesn't include the current node.
-            int controllerActiveCount = 1;
             var connectedNodes = GetConnectedNodes();
-            foreach (var def in _controllerNodes)
-            {
-                if (connectedNodes.Any(e => Equals(e.Item1, def)))
-                {
-                    controllerActiveCount++;
-                }
-            }
+            int controllerActiveCount = 1 + _controllerNodes.Count(def => connectedNodes.Any(e => Equals(e.Item1, def)));
 
             if (controllerActiveCount > _controllerNodes.Count / 2)
             {

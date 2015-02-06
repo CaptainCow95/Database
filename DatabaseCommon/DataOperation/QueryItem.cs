@@ -27,84 +27,15 @@ namespace Database.Common.DataOperation
         {
             _key = entry.Key;
 
-            if (entry.ValueType == DocumentEntryType.Document)
-            {
-                Document doc = entry.ValueAsDocument;
-
-                foreach (var item in doc)
-                {
-                    switch (item.Key)
-                    {
-                        case "lt":
-                            if (item.Value.ValueType == DocumentEntryType.Array || item.Value.ValueType == DocumentEntryType.Boolean || item.Value.ValueType == DocumentEntryType.Document)
-                            {
-                                throw new QueryException("DocumentEntryType \"" + Enum.GetName(typeof(DocumentEntryType), item.Value.ValueType) + "\" is not supported on the \"lt\" query.");
-                            }
-
-                            _parts.Add(new QueryItemPart(QueryItemPartType.LessThen, item.Value));
-                            break;
-
-                        case "lte":
-                            if (item.Value.ValueType == DocumentEntryType.Array || item.Value.ValueType == DocumentEntryType.Boolean || item.Value.ValueType == DocumentEntryType.Document)
-                            {
-                                throw new QueryException("DocumentEntryType \"" + Enum.GetName(typeof(DocumentEntryType), item.Value.ValueType) + "\" is not supported on the \"lte\" query.");
-                            }
-
-                            _parts.Add(new QueryItemPart(QueryItemPartType.LessThenEqualTo, item.Value));
-                            break;
-
-                        case "eq":
-                            _parts.Add(new QueryItemPart(QueryItemPartType.Equal, item.Value));
-                            break;
-
-                        case "neq":
-                            _parts.Add(new QueryItemPart(QueryItemPartType.NotEqual, item.Value));
-                            break;
-
-                        case "gt":
-                            if (item.Value.ValueType == DocumentEntryType.Array || item.Value.ValueType == DocumentEntryType.Boolean || item.Value.ValueType == DocumentEntryType.Document)
-                            {
-                                throw new QueryException("DocumentEntryType \"" + Enum.GetName(typeof(DocumentEntryType), item.Value.ValueType) + "\" is not supported on the \"gt\" query.");
-                            }
-
-                            _parts.Add(new QueryItemPart(QueryItemPartType.GreaterThen, item.Value));
-                            break;
-
-                        case "gte":
-                            if (item.Value.ValueType == DocumentEntryType.Array || item.Value.ValueType == DocumentEntryType.Boolean || item.Value.ValueType == DocumentEntryType.Document)
-                            {
-                                throw new QueryException("DocumentEntryType \"" + Enum.GetName(typeof(DocumentEntryType), item.Value.ValueType) + "\" is not supported on the \"gte\" query.");
-                            }
-
-                            _parts.Add(new QueryItemPart(QueryItemPartType.GreaterThenEqualTo, item.Value));
-                            break;
-
-                        case "in":
-                            if (item.Value.ValueType == DocumentEntryType.Array || item.Value.ValueType == DocumentEntryType.Document)
-                            {
-                                throw new QueryException("DocumentEntryType \"" + Enum.GetName(typeof(DocumentEntryType), item.Value.ValueType) + "\" is not supported on the \"in\" query.");
-                            }
-
-                            _parts.Add(new QueryItemPart(QueryItemPartType.Contains, item.Value));
-                            break;
-
-                        case "nin":
-                            if (item.Value.ValueType == DocumentEntryType.Array || item.Value.ValueType == DocumentEntryType.Document)
-                            {
-                                throw new QueryException("DocumentEntryType \"" + Enum.GetName(typeof(DocumentEntryType), item.Value.ValueType) + "\" is not supported on the \"nin\" query.");
-                            }
-
-                            _parts.Add(new QueryItemPart(QueryItemPartType.NotContains, item.Value));
-                            break;
-
-                        default:
-                            throw new QueryException("Invalid query entry.");
-                    }
-                }
-            }
-            else
+            if (entry.ValueType != DocumentEntryType.Document)
             {
                 _parts.Add(new QueryItemPart(QueryItemPartType.Equal, entry));
+                return;
+            }
+
+            foreach (var item in entry.ValueAsDocument)
+            {
+                GenerateQueryItem(item.Key, item.Value);
             }
         }
 
@@ -161,82 +92,7 @@ namespace Database.Common.DataOperation
         /// <returns>True if the document matches the query, otherwise false.</returns>
         public bool Match(Document doc)
         {
-            if (!doc.ContainsKey(_key))
-            {
-                return false;
-            }
-
-            foreach (var part in _parts)
-            {
-                switch (part.Type)
-                {
-                    case QueryItemPartType.LessThen:
-                        if (!LessThen(doc[_key], part.Value))
-                        {
-                            return false;
-                        }
-
-                        break;
-
-                    case QueryItemPartType.LessThenEqualTo:
-                        if (!LessThenEqualTo(doc[_key], part.Value))
-                        {
-                            return false;
-                        }
-
-                        break;
-
-                    case QueryItemPartType.Equal:
-                        if (!AreEqual(doc[_key], part.Value))
-                        {
-                            return false;
-                        }
-
-                        break;
-
-                    case QueryItemPartType.NotEqual:
-                        if (AreEqual(doc[_key], part.Value))
-                        {
-                            return false;
-                        }
-
-                        break;
-
-                    case QueryItemPartType.GreaterThen:
-                        if (!GreaterThen(doc[_key], part.Value))
-                        {
-                            return false;
-                        }
-
-                        break;
-
-                    case QueryItemPartType.GreaterThenEqualTo:
-                        if (!GreaterThenEqualTo(doc[_key], part.Value))
-                        {
-                            return false;
-                        }
-
-                        break;
-
-                    case QueryItemPartType.Contains:
-                        if (!Contains(doc[_key], part.Value))
-                        {
-                            return false;
-                        }
-
-                        break;
-
-                    case QueryItemPartType.NotContains:
-                        if (Contains(doc[_key], part.Value))
-                        {
-                            return false;
-                        }
-
-                        break;
-                }
-            }
-
-            return true;
+            return doc.ContainsKey(_key) && _parts.All(e => MatchItem(doc, e));
         }
 
         /// <summary>
@@ -255,40 +111,13 @@ namespace Database.Common.DataOperation
             switch (a.ValueType)
             {
                 case DocumentEntryType.Array:
-                    bool allFound = true;
-                    foreach (var item in a.ValueAsArray)
-                    {
-                        if (!b.ValueAsArray.Any(e => AreEqual(item, e)))
-                        {
-                            allFound = false;
-                        }
-                    }
-
-                    return allFound && a.ValueAsArray.Count == b.ValueAsArray.Count;
+                    return Equals(a.ValueAsArray, b.ValueAsArray);
 
                 case DocumentEntryType.Boolean:
                     return a.ValueAsBoolean == b.ValueAsBoolean;
 
                 case DocumentEntryType.Document:
-                    if (a.ValueAsDocument.Count != b.ValueAsDocument.Count)
-                    {
-                        return false;
-                    }
-
-                    foreach (var item in a.ValueAsDocument)
-                    {
-                        if (!b.ValueAsDocument.ContainsKey(item.Key))
-                        {
-                            return false;
-                        }
-
-                        if (!AreEqual(b.ValueAsDocument[item.Key], item.Value))
-                        {
-                            return false;
-                        }
-                    }
-
-                    return true;
+                    return Equals(a.ValueAsDocument, b.ValueAsDocument);
 
                 case DocumentEntryType.Float:
                     return Math.Abs(a.ValueAsFloat - b.ValueAsFloat) < float.Epsilon;
@@ -318,6 +147,104 @@ namespace Database.Common.DataOperation
             }
 
             return a.ValueAsArray.Any(item => Equals(item.Value, b.Value));
+        }
+
+        /// <summary>
+        /// Generates a query item from a document entry and adds it to the parts list.
+        /// </summary>
+        /// <param name="key">The entry's key.</param>
+        /// <param name="value">The entry's value.</param>
+        private void GenerateQueryItem(string key, DocumentEntry value)
+        {
+            switch (key)
+            {
+                case "lt":
+                    if (value.ValueType == DocumentEntryType.Array ||
+                        value.ValueType == DocumentEntryType.Boolean ||
+                        value.ValueType == DocumentEntryType.Document)
+                    {
+                        throw new QueryException("DocumentEntryType \"" +
+                                                 Enum.GetName(typeof(DocumentEntryType), value.ValueType) +
+                                                 "\" is not supported on the \"lt\" query.");
+                    }
+
+                    _parts.Add(new QueryItemPart(QueryItemPartType.LessThen, value));
+                    break;
+
+                case "lte":
+                    if (value.ValueType == DocumentEntryType.Array ||
+                        value.ValueType == DocumentEntryType.Boolean ||
+                        value.ValueType == DocumentEntryType.Document)
+                    {
+                        throw new QueryException("DocumentEntryType \"" +
+                                                 Enum.GetName(typeof(DocumentEntryType), value.ValueType) +
+                                                 "\" is not supported on the \"lte\" query.");
+                    }
+
+                    _parts.Add(new QueryItemPart(QueryItemPartType.LessThenEqualTo, value));
+                    break;
+
+                case "eq":
+                    _parts.Add(new QueryItemPart(QueryItemPartType.Equal, value));
+                    break;
+
+                case "neq":
+                    _parts.Add(new QueryItemPart(QueryItemPartType.NotEqual, value));
+                    break;
+
+                case "gt":
+                    if (value.ValueType == DocumentEntryType.Array ||
+                        value.ValueType == DocumentEntryType.Boolean ||
+                        value.ValueType == DocumentEntryType.Document)
+                    {
+                        throw new QueryException("DocumentEntryType \"" +
+                                                 Enum.GetName(typeof(DocumentEntryType), value.ValueType) +
+                                                 "\" is not supported on the \"gt\" query.");
+                    }
+
+                    _parts.Add(new QueryItemPart(QueryItemPartType.GreaterThen, value));
+                    break;
+
+                case "gte":
+                    if (value.ValueType == DocumentEntryType.Array ||
+                        value.ValueType == DocumentEntryType.Boolean ||
+                        value.ValueType == DocumentEntryType.Document)
+                    {
+                        throw new QueryException("DocumentEntryType \"" +
+                                                 Enum.GetName(typeof(DocumentEntryType), value.ValueType) +
+                                                 "\" is not supported on the \"gte\" query.");
+                    }
+
+                    _parts.Add(new QueryItemPart(QueryItemPartType.GreaterThenEqualTo, value));
+                    break;
+
+                case "in":
+                    if (value.ValueType == DocumentEntryType.Array ||
+                        value.ValueType == DocumentEntryType.Document)
+                    {
+                        throw new QueryException("DocumentEntryType \"" +
+                                                 Enum.GetName(typeof(DocumentEntryType), value.ValueType) +
+                                                 "\" is not supported on the \"in\" query.");
+                    }
+
+                    _parts.Add(new QueryItemPart(QueryItemPartType.Contains, value));
+                    break;
+
+                case "nin":
+                    if (value.ValueType == DocumentEntryType.Array ||
+                        value.ValueType == DocumentEntryType.Document)
+                    {
+                        throw new QueryException("DocumentEntryType \"" +
+                                                 Enum.GetName(typeof(DocumentEntryType), value.ValueType) +
+                                                 "\" is not supported on the \"nin\" query.");
+                    }
+
+                    _parts.Add(new QueryItemPart(QueryItemPartType.NotContains, value));
+                    break;
+
+                default:
+                    throw new QueryException("Invalid query entry.");
+            }
         }
 
         /// <summary>
@@ -433,6 +360,45 @@ namespace Database.Common.DataOperation
 
                 default:
                     return false;
+            }
+        }
+
+        /// <summary>
+        /// Checks to see if item at the key matches the query item.
+        /// </summary>
+        /// <param name="doc">The document to look in.</param>
+        /// <param name="part">The query item to match against.</param>
+        /// <returns>True if the document matches the query item, otherwise false.</returns>
+        private bool MatchItem(Document doc, QueryItemPart part)
+        {
+            switch (part.Type)
+            {
+                case QueryItemPartType.LessThen:
+                    return LessThen(doc[_key], part.Value);
+
+                case QueryItemPartType.LessThenEqualTo:
+                    return LessThenEqualTo(doc[_key], part.Value);
+
+                case QueryItemPartType.Equal:
+                    return AreEqual(doc[_key], part.Value);
+
+                case QueryItemPartType.NotEqual:
+                    return !AreEqual(doc[_key], part.Value);
+
+                case QueryItemPartType.GreaterThen:
+                    return GreaterThen(doc[_key], part.Value);
+
+                case QueryItemPartType.GreaterThenEqualTo:
+                    return GreaterThenEqualTo(doc[_key], part.Value);
+
+                case QueryItemPartType.Contains:
+                    return Contains(doc[_key], part.Value);
+
+                case QueryItemPartType.NotContains:
+                    return !Contains(doc[_key], part.Value);
+
+                default:
+                    throw new NotImplementedException();
             }
         }
 

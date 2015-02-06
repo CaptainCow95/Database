@@ -86,16 +86,11 @@ namespace Database.Storage
                     }
                 }
 
-                var chunksToRemove = new List<DatabaseChunk>();
-                foreach (var item in _chunks)
+                var chunksToRemove = _chunks.Where(item => !chunks.Any(e => Equals(e.Item1, item.Start) && Equals(e.Item2, item.End)));
+                foreach (var item in chunksToRemove)
                 {
-                    if (!chunks.Any(e => Equals(e.Item1, item.Start) && Equals(e.Item2, item.End)))
-                    {
-                        chunksToRemove.Add(item);
-                    }
+                    _chunks.Remove(item);
                 }
-
-                _chunks.RemoveAll(e => chunksToRemove.Contains(e));
             }
         }
 
@@ -131,48 +126,26 @@ namespace Database.Storage
         {
             AddOperation op = new AddOperation(doc);
 
-            if (op.Valid)
+            if (!op.Valid)
             {
-                // Check if the document already has an id assigned.
-                if (op.Document.ContainsKey("id"))
-                {
-                    // Make sure the id is an actual object id. (Just needs to be a 20 digit hex number)
-                    if (op.Document["id"].ValueType == DocumentEntryType.String)
-                    {
-                        ObjectId id;
-                        try
-                        {
-                            id = new ObjectId(op.Document["id"].ValueAsString);
-                        }
-                        catch (Exception)
-                        {
-                            return new DataOperationResult(ErrorCodes.InvalidId, "Document contains an id field that is not an ObjectId.");
-                        }
-
-                        bool success = false;
-                        lock (_chunks)
-                        {
-                            if (GetChunk(id).Add(id, op.Document))
-                            {
-                                success = true;
-                            }
-                        }
-
-                        if (success)
-                        {
-                            return new DataOperationResult(op.Document);
-                        }
-
-                        return new DataOperationResult(ErrorCodes.InvalidId, "A key with the specified ObjectId already exists.");
-                    }
-
-                    return new DataOperationResult(ErrorCodes.InvalidId, "Document contains an id field that is not an ObjectId.");
-                }
-
-                throw new Exception("No id in the document, there is something wrong with the network synchronization.");
+                return op.ErrorMessage;
             }
 
-            return new DataOperationResult(ErrorCodes.InvalidDocument, "Syntax error while trying to parse the add command.");
+            bool success = false;
+            lock (_chunks)
+            {
+                if (GetChunk(op.Id).Add(op.Id, op.Document))
+                {
+                    success = true;
+                }
+            }
+
+            if (success)
+            {
+                return new DataOperationResult(op.Document);
+            }
+
+            return new DataOperationResult(ErrorCodes.InvalidId, "A key with the specified ObjectId already exists.");
         }
 
         /// <summary>
@@ -184,38 +157,38 @@ namespace Database.Storage
         {
             QueryOperation op = new QueryOperation(doc);
 
-            if (op.Valid)
+            if (!op.Valid)
             {
-                List<QueryItem> queryItems = BuildQueryItems(op.Fields);
-
-                List<Document> results = new List<Document>();
-                lock (_chunks)
-                {
-                    foreach (var item in _chunks)
-                    {
-                        results.AddRange(item.Query(queryItems));
-                    }
-                }
-
-                StringBuilder builder = new StringBuilder();
-                builder.Append("{");
-
-                int count = 0;
-                foreach (var result in results)
-                {
-                    builder.Append("\"" + count + "\":");
-                    builder.Append(result.ToJson());
-                    builder.Append(",");
-                    ++count;
-                }
-
-                builder.Append("\"count\":" + count);
-
-                builder.Append("}");
-                return new DataOperationResult(new Document(builder.ToString()));
+                return op.ErrorMessage;
             }
 
-            return new DataOperationResult(ErrorCodes.InvalidDocument, "Syntax error while trying to parse the query command.");
+            List<QueryItem> queryItems = BuildQueryItems(op.Fields);
+
+            List<Document> results = new List<Document>();
+            lock (_chunks)
+            {
+                foreach (var item in _chunks)
+                {
+                    results.AddRange(item.Query(queryItems));
+                }
+            }
+
+            StringBuilder builder = new StringBuilder();
+            builder.Append("{");
+
+            int count = 0;
+            foreach (var result in results)
+            {
+                builder.Append("\"" + count + "\":");
+                builder.Append(result.ToJson());
+                builder.Append(",");
+                ++count;
+            }
+
+            builder.Append("\"count\":" + count);
+
+            builder.Append("}");
+            return new DataOperationResult(new Document(builder.ToString()));
         }
 
         /// <summary>
@@ -227,17 +200,17 @@ namespace Database.Storage
         {
             RemoveOperation op = new RemoveOperation(doc);
 
-            if (op.Valid)
+            if (!op.Valid)
             {
-                lock (_chunks)
-                {
-                    GetChunk(op.DocumentId).Remove(op.DocumentId);
-                }
-
-                return new DataOperationResult(new Document());
+                return op.ErrorMessage;
             }
 
-            return new DataOperationResult(ErrorCodes.InvalidDocument, "Syntax error while trying to parse the remove command.");
+            lock (_chunks)
+            {
+                GetChunk(op.DocumentId).Remove(op.DocumentId);
+            }
+
+            return new DataOperationResult(new Document());
         }
 
         /// <summary>
@@ -248,34 +221,36 @@ namespace Database.Storage
         private DataOperationResult ProcessUpdateOperation(Document doc)
         {
             UpdateOperation op = new UpdateOperation(doc);
-            if (op.UpdateFields.ContainsKey("id") || op.RemoveFields.Contains("id"))
+            if (!op.Valid)
             {
-                return new DataOperationResult(ErrorCodes.InvalidDocument, "Cannot modify the ObjectId of a document after it is created.");
+                return op.ErrorMessage;
             }
 
-            if (op.Valid)
+            var success = false;
+            Document toUpdate = null;
+            lock (_chunks)
             {
-                lock (_chunks)
+                var chunk = GetChunk(op.DocumentId);
+
+                if (chunk.ContainsKey(op.DocumentId))
                 {
-                    var chunk = GetChunk(op.DocumentId);
-
-                    if (chunk.ContainsKey(op.DocumentId))
+                    toUpdate = chunk[op.DocumentId];
+                    toUpdate.Merge(op.UpdateFields);
+                    foreach (var field in op.RemoveFields)
                     {
-                        Document toUpdate = chunk[op.DocumentId];
-                        toUpdate.Merge(op.UpdateFields);
-                        foreach (var field in op.RemoveFields)
-                        {
-                            toUpdate.RemoveField(field);
-                        }
-
-                        return new DataOperationResult(toUpdate);
+                        toUpdate.RemoveField(field);
                     }
 
-                    return new DataOperationResult(ErrorCodes.InvalidId, "The specified document was not found.");
+                    success = true;
                 }
             }
 
-            return new DataOperationResult(ErrorCodes.InvalidDocument, "Syntax error while trying to parse the update command.");
+            if (!success)
+            {
+                return new DataOperationResult(ErrorCodes.InvalidId, "The specified document was not found.");
+            }
+
+            return new DataOperationResult(toUpdate);
         }
     }
 }

@@ -191,6 +191,49 @@ namespace Database.Query
         }
 
         /// <summary>
+        /// Processes an add operation.
+        /// </summary>
+        /// <param name="dataOperation">The document that represents the operation.</param>
+        /// <param name="op">The original operation message.</param>
+        /// <returns>The result of the operation.</returns>
+        private DataOperationResult ProcessAddOperation(Document dataOperation, DataOperation op)
+        {
+            AddOperation addOperation = new AddOperation(dataOperation["add"].ValueAsDocument);
+            if (!addOperation.Valid)
+            {
+                return addOperation.ErrorMessage;
+            }
+
+            NodeDefinition node = null;
+            lock (_chunkList)
+            {
+                foreach (var item in _chunkList)
+                {
+                    if (ChunkMarker.IsBetween(item.Item1, item.Item2, addOperation.Id.ToString()))
+                    {
+                        node = item.Item3;
+                        break;
+                    }
+                }
+            }
+
+            if (node == null)
+            {
+                return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
+            }
+
+            Message operationMessage = new Message(node, op, true);
+            SendMessage(operationMessage);
+            operationMessage.BlockUntilDone();
+            if (operationMessage.Success)
+            {
+                return (DataOperationResult)operationMessage.Response.Data;
+            }
+
+            return new DataOperationResult(ErrorCodes.FailedMessage, "Failed to send message to storage node.");
+        }
+
+        /// <summary>
         /// Processes a data operation.
         /// </summary>
         /// <param name="dataOperation">The data operation to process.</param>
@@ -198,207 +241,168 @@ namespace Database.Query
         /// <returns>The result of the operation.</returns>
         private DataOperationResult ProcessDataOperation(Document dataOperation, DataOperation op)
         {
-            if (dataOperation.ContainsKey("add") && dataOperation["add"].ValueType == DocumentEntryType.Document &&
-                dataOperation["add"].ValueAsDocument.ContainsKey("document") && dataOperation["add"].ValueAsDocument["document"].ValueType == DocumentEntryType.Document)
+            if (dataOperation.ContainsKey("add") && dataOperation["add"].ValueType == DocumentEntryType.Document)
             {
-                if (dataOperation["add"].ValueAsDocument["document"].ValueAsDocument.ContainsKey("id"))
-                {
-                    if (dataOperation["add"].ValueAsDocument["document"].ValueAsDocument["id"].ValueType == DocumentEntryType.String)
-                    {
-                        ObjectId id;
-                        try
-                        {
-                            id = new ObjectId(dataOperation["add"].ValueAsDocument["document"].ValueAsDocument["id"].ValueAsString);
-                        }
-                        catch (Exception)
-                        {
-                            return new DataOperationResult(ErrorCodes.InvalidId, "Document contains an id field that is not an ObjectId.");
-                        }
-
-                        NodeDefinition node = null;
-                        lock (_chunkList)
-                        {
-                            foreach (var item in _chunkList)
-                            {
-                                if (ChunkMarker.IsBetween(item.Item1, item.Item2, id.ToString()))
-                                {
-                                    node = item.Item3;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (node == null)
-                        {
-                            return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
-                        }
-
-                        Message operationMessage = new Message(node, op, true);
-                        SendMessage(operationMessage);
-                        operationMessage.BlockUntilDone();
-                        if (operationMessage.Success)
-                        {
-                            return (DataOperationResult)operationMessage.Response.Data;
-                        }
-
-                        return new DataOperationResult(ErrorCodes.FailedMessage, "Failed to send message to storage node.");
-                    }
-
-                    return new DataOperationResult(ErrorCodes.InvalidId, "Document contains an id field that is not an ObjectId.");
-                }
-
-                return new DataOperationResult(ErrorCodes.InvalidId, "Document does not contain an id field.");
+                return ProcessAddOperation(dataOperation, op);
             }
 
             if (dataOperation.ContainsKey("remove") && dataOperation["remove"].ValueType == DocumentEntryType.Document)
             {
-                if (dataOperation["remove"].ValueAsDocument.ContainsKey("documentId"))
-                {
-                    if (dataOperation["remove"].ValueAsDocument["documentId"].ValueType == DocumentEntryType.String)
-                    {
-                        ObjectId id;
-                        try
-                        {
-                            id = new ObjectId(dataOperation["remove"].ValueAsDocument["documentId"].ValueAsString);
-                        }
-                        catch (Exception)
-                        {
-                            return new DataOperationResult(ErrorCodes.InvalidDocument, "The document is invalid.");
-                        }
-
-                        NodeDefinition node = null;
-                        lock (_chunkList)
-                        {
-                            foreach (var item in _chunkList)
-                            {
-                                if (ChunkMarker.IsBetween(item.Item1, item.Item2, id.ToString()))
-                                {
-                                    node = item.Item3;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (node == null)
-                        {
-                            return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
-                        }
-
-                        Message operationMessage = new Message(node, op, true);
-                        SendMessage(operationMessage);
-                        operationMessage.BlockUntilDone();
-                        if (operationMessage.Success)
-                        {
-                            return (DataOperationResult)operationMessage.Response.Data;
-                        }
-
-                        return new DataOperationResult(ErrorCodes.FailedMessage, "Failed to send message to storage node.");
-                    }
-                }
-
-                return new DataOperationResult(ErrorCodes.InvalidDocument, "The document is invalid.");
+                return ProcessRemoveOperation(dataOperation, op);
             }
 
             if (dataOperation.ContainsKey("update") && dataOperation["update"].ValueType == DocumentEntryType.Document)
             {
-                if (dataOperation["update"].ValueAsDocument.ContainsKey("documentId"))
-                {
-                    if (dataOperation["update"].ValueAsDocument["documentId"].ValueType == DocumentEntryType.String)
-                    {
-                        ObjectId id;
-                        try
-                        {
-                            id = new ObjectId(dataOperation["update"].ValueAsDocument["documentId"].ValueAsString);
-                        }
-                        catch (Exception)
-                        {
-                            return new DataOperationResult(ErrorCodes.InvalidDocument, "The document is invalid.");
-                        }
-
-                        NodeDefinition node = null;
-                        lock (_chunkList)
-                        {
-                            foreach (var item in _chunkList)
-                            {
-                                if (ChunkMarker.IsBetween(item.Item1, item.Item2, id.ToString()))
-                                {
-                                    node = item.Item3;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (node == null)
-                        {
-                            return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
-                        }
-
-                        Message operationMessage = new Message(node, op, true);
-                        SendMessage(operationMessage);
-                        operationMessage.BlockUntilDone();
-                        if (operationMessage.Success)
-                        {
-                            return (DataOperationResult)operationMessage.Response.Data;
-                        }
-
-                        return new DataOperationResult(ErrorCodes.FailedMessage, "Failed to send message to storage node.");
-                    }
-                }
-
-                return new DataOperationResult(ErrorCodes.InvalidDocument, "The document is invalid.");
+                return ProcessUpdateOperation(dataOperation, op);
             }
 
             if (dataOperation.ContainsKey("query") && dataOperation["query"].ValueType == DocumentEntryType.Document)
             {
-                List<Message> sent = new List<Message>();
-                lock (_connectedStorageNodes)
-                {
-                    foreach (var item in _connectedStorageNodes)
-                    {
-                        Message operationMessage = new Message(item, op, true);
-                        SendMessage(operationMessage);
-                        sent.Add(operationMessage);
-                    }
-                }
+                return ProcessQueryOperation(op);
+            }
 
-                Document workingDocument = new Document();
-                int i = 0;
-                foreach (var result in sent)
+            return new DataOperationResult(ErrorCodes.InvalidDocument, "No valid operation specified.");
+        }
+
+        /// <summary>
+        /// Processes a query operation.
+        /// </summary>
+        /// <param name="op">The original operation message.</param>
+        /// <returns>The result of the operation.</returns>
+        private DataOperationResult ProcessQueryOperation(DataOperation op)
+        {
+            List<Message> sent = new List<Message>();
+            lock (_connectedStorageNodes)
+            {
+                foreach (var item in _connectedStorageNodes)
                 {
-                    result.BlockUntilDone();
-                    if (result.Success)
+                    Message operationMessage = new Message(item, op, true);
+                    SendMessage(operationMessage);
+                    sent.Add(operationMessage);
+                }
+            }
+
+            Document workingDocument = new Document();
+            int i = 0;
+            foreach (var result in sent)
+            {
+                result.BlockUntilDone();
+                if (result.Success)
+                {
+                    Document doc = new Document(((DataOperationResult)result.Response.Data).Result);
+                    if (doc["success"].ValueAsBoolean)
                     {
-                        Document doc = new Document(((DataOperationResult)result.Response.Data).Result);
-                        if (doc["success"].ValueAsBoolean)
+                        Document results = doc["result"].ValueAsDocument;
+                        for (int j = 0; j < results["count"].ValueAsInteger; ++j)
                         {
-                            Document results = doc["result"].ValueAsDocument;
-                            for (int j = 0; j < results["count"].ValueAsInteger; ++j)
-                            {
-                                workingDocument[i.ToString()] = new DocumentEntry(i.ToString(), results[j.ToString()].ValueType, results[j.ToString()].Value);
-                                ++i;
-                            }
-                        }
-                        else
-                        {
-                            return new DataOperationResult((DataOperationResult)result.Response.Data);
+                            workingDocument[i.ToString()] = new DocumentEntry(i.ToString(), results[j.ToString()].ValueType, results[j.ToString()].Value);
+                            ++i;
                         }
                     }
                     else
                     {
-                        return new DataOperationResult(ErrorCodes.FailedMessage, "Could not reach any storage nodes.");
+                        return new DataOperationResult((DataOperationResult)result.Response.Data);
                     }
                 }
-
-                if (sent.Count == 0)
+                else
                 {
                     return new DataOperationResult(ErrorCodes.FailedMessage, "Could not reach any storage nodes.");
                 }
-
-                workingDocument["count"] = new DocumentEntry("count", DocumentEntryType.Integer, i);
-                return new DataOperationResult(workingDocument);
             }
 
-            return new DataOperationResult(ErrorCodes.InvalidDocument, "No valid operation specified.");
+            if (sent.Count == 0)
+            {
+                return new DataOperationResult(ErrorCodes.FailedMessage, "Could not reach any storage nodes.");
+            }
+
+            workingDocument["count"] = new DocumentEntry("count", DocumentEntryType.Integer, i);
+            return new DataOperationResult(workingDocument);
+        }
+
+        /// <summary>
+        /// Processes a remove operation.
+        /// </summary>
+        /// <param name="dataOperation">The document that represents the operation.</param>
+        /// <param name="op">The original operation message.</param>
+        /// <returns>The result of the operation.</returns>
+        private DataOperationResult ProcessRemoveOperation(Document dataOperation, DataOperation op)
+        {
+            RemoveOperation removeOperation = new RemoveOperation(dataOperation["remove"].ValueAsDocument);
+            if (!removeOperation.Valid)
+            {
+                return removeOperation.ErrorMessage;
+            }
+
+            NodeDefinition node = null;
+            lock (_chunkList)
+            {
+                foreach (var item in _chunkList)
+                {
+                    if (ChunkMarker.IsBetween(item.Item1, item.Item2, removeOperation.DocumentId.ToString()))
+                    {
+                        node = item.Item3;
+                        break;
+                    }
+                }
+            }
+
+            if (node == null)
+            {
+                return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
+            }
+
+            Message operationMessage = new Message(node, op, true);
+            SendMessage(operationMessage);
+            operationMessage.BlockUntilDone();
+            if (operationMessage.Success)
+            {
+                return (DataOperationResult)operationMessage.Response.Data;
+            }
+
+            return new DataOperationResult(ErrorCodes.FailedMessage, "Failed to send message to storage node.");
+        }
+
+        /// <summary>
+        /// Processes an update operation.
+        /// </summary>
+        /// <param name="dataOperation">The document that represents the operation.</param>
+        /// <param name="op">The original operation message.</param>
+        /// <returns>The result of the operation.</returns>
+        private DataOperationResult ProcessUpdateOperation(Document dataOperation, DataOperation op)
+        {
+            UpdateOperation updateOperation = new UpdateOperation(dataOperation["update"].ValueAsDocument);
+            if (!updateOperation.Valid)
+            {
+                return updateOperation.ErrorMessage;
+            }
+
+            NodeDefinition node = null;
+            lock (_chunkList)
+            {
+                foreach (var item in _chunkList)
+                {
+                    if (ChunkMarker.IsBetween(item.Item1, item.Item2, updateOperation.DocumentId.ToString()))
+                    {
+                        node = item.Item3;
+                        break;
+                    }
+                }
+            }
+
+            if (node == null)
+            {
+                return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
+            }
+
+            Message operationMessage = new Message(node, op, true);
+            SendMessage(operationMessage);
+            operationMessage.BlockUntilDone();
+            if (operationMessage.Success)
+            {
+                return (DataOperationResult)operationMessage.Response.Data;
+            }
+
+            return new DataOperationResult(ErrorCodes.FailedMessage, "Failed to send message to storage node.");
         }
     }
 }
