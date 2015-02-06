@@ -1,5 +1,6 @@
 ﻿using Database.Common.DataOperation;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -11,11 +12,6 @@ namespace Database.Storage
     public class DatabaseChunk
     {
         /// <summary>
-        /// The data contained by the chunk.
-        /// </summary>
-        private readonly SortedDictionary<ObjectId, Document> _data = new SortedDictionary<ObjectId, Document>();
-
-        /// <summary>
         /// The start of the chunk.
         /// </summary>
         private readonly ChunkMarker _start;
@@ -24,6 +20,11 @@ namespace Database.Storage
         /// The end of the chunk.
         /// </summary>
         private ChunkMarker _end;
+
+        /// <summary>
+        /// The data contained by the chunk.
+        /// </summary>
+        private ConcurrentDictionary<ObjectId, Document> _newData = new ConcurrentDictionary<ObjectId, Document>();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DatabaseChunk"/> class.
@@ -42,11 +43,11 @@ namespace Database.Storage
         /// <param name="start">The start of the chunk.</param>
         /// <param name="end">The end of the chunk.</param>
         /// <param name="data">The data to load the chunk with.</param>
-        private DatabaseChunk(ChunkMarker start, ChunkMarker end, SortedDictionary<ObjectId, Document> data)
+        private DatabaseChunk(ChunkMarker start, ChunkMarker end, ConcurrentDictionary<ObjectId, Document> data)
         {
             _start = start;
             _end = end;
-            _data = new SortedDictionary<ObjectId, Document>(data);
+            _newData = new ConcurrentDictionary<ObjectId, Document>(data);
         }
 
         /// <summary>
@@ -54,7 +55,7 @@ namespace Database.Storage
         /// </summary>
         public int Count
         {
-            get { return _data.Count; }
+            get { return _newData.Count; }
         }
 
         /// <summary>
@@ -74,34 +75,6 @@ namespace Database.Storage
         }
 
         /// <summary>
-        /// Gets or sets an object at the specified id.
-        /// </summary>
-        /// <param name="id">The id to get or set at.</param>
-        /// <returns>The <see cref="Document"/> contained at the specified id.</returns>
-        public Document this[ObjectId id]
-        {
-            get { return _data[id]; }
-            set { _data[id] = value; }
-        }
-
-        /// <summary>
-        /// Adds an object to the chunk.
-        /// </summary>
-        /// <param name="id">The id of the object.</param>
-        /// <param name="document">The document of the object.</param>
-        /// <returns>A value indicating whether the add was successful or if the key already existed.</returns>
-        public bool Add(ObjectId id, Document document)
-        {
-            if (_data.ContainsKey(id))
-            {
-                return false;
-            }
-
-            _data.Add(id, document);
-            return true;
-        }
-
-        /// <summary>
         /// Combines this current chunk with the one passed in.
         /// </summary>
         /// <param name="c">The chunk to combine.</param>
@@ -114,22 +87,12 @@ namespace Database.Storage
             }
 
             // Copy the data over.
-            foreach (var item in c._data)
+            foreach (var item in c._newData)
             {
-                _data.Add(item.Key, item.Value);
+                _newData.TryAdd(item.Key, item.Value);
             }
 
             _end = c._end;
-        }
-
-        /// <summary>
-        /// Checks whether this chunks contains an object.
-        /// </summary>
-        /// <param name="id">The id to check for.</param>
-        /// <returns>A value indicating whether the object is in this chunk.</returns>
-        public bool ContainsKey(ObjectId id)
-        {
-            return _data.ContainsKey(id);
         }
 
         /// <summary>
@@ -139,27 +102,7 @@ namespace Database.Storage
         /// <returns>A list of the matching documents in the chunk.</returns>
         public List<Document> Query(List<QueryItem> queryItems)
         {
-            List<Document> results = new List<Document>();
-            foreach (var item in _data)
-            {
-                bool matches = queryItems.All(query => query.Match(item.Value));
-
-                if (matches)
-                {
-                    results.Add(item.Value);
-                }
-            }
-
-            return results;
-        }
-
-        /// <summary>
-        /// Removes an object from the chunk.
-        /// </summary>
-        /// <param name="id">The object to remove.</param>
-        public void Remove(ObjectId id)
-        {
-            _data.Remove(id);
+            return _newData.Where(e => queryItems.All(query => query.Match(e.Value))).Select(e => e.Value).ToList();
         }
 
         /// <summary>
@@ -168,17 +111,62 @@ namespace Database.Storage
         /// <returns>The new chunk created from the split.</returns>
         public DatabaseChunk Split()
         {
-            var newData = new SortedDictionary<ObjectId, Document>(_data.Skip(_data.Count / 2).ToDictionary(e => e.Key, e => e.Value));
-
-            foreach (var item in newData)
+            lock (_newData)
             {
-                _data.Remove(item.Key);
+                var newData = new ConcurrentDictionary<ObjectId, Document>(_newData.Skip(_newData.Count / 2).ToDictionary(e => e.Key, e => e.Value));
+                _newData = new ConcurrentDictionary<ObjectId, Document>(_newData.Take(_newData.Count / 2));
+
+                var oldEnd = _end;
+                _end = new ChunkMarker(newData.Keys.Min().ToString());
+                _end = new ChunkMarker(newData.First().Key.ToString());
+
+                return new DatabaseChunk(_end, oldEnd, newData);
             }
+        }
 
-            var oldEnd = _end;
-            _end = new ChunkMarker(newData.First().Key.ToString());
+        /// <summary>
+        /// Tries to add an object to the chunk.
+        /// </summary>
+        /// <param name="id">The id of the object.</param>
+        /// <param name="document">The document of the object.</param>
+        /// <returns>A value indicating whether the add was successful or if the key already existed.</returns>
+        public bool TryAdd(ObjectId id, Document document)
+        {
+            return _newData.TryAdd(id, document);
+        }
 
-            return new DatabaseChunk(_end, oldEnd, newData);
+        /// <summary>
+        /// Tries to get an object from the chunk.
+        /// </summary>
+        /// <param name="id">The id of the object.</param>
+        /// <param name="value">The document that was retrieved.</param>
+        /// <returns>True if the get was successful, otherwise false.</returns>
+        public bool TryGet(ObjectId id, out Document value)
+        {
+            return _newData.TryGetValue(id, out value);
+        }
+
+        /// <summary>
+        /// Tries to remove an object from the chunk.
+        /// </summary>
+        /// <param name="id">The object to remove.</param>
+        /// <param name="removed">The object that was removed.</param>
+        /// <returns>True if the remove was successful, otherwise false.</returns>
+        public bool TryRemove(ObjectId id, out Document removed)
+        {
+            return _newData.TryRemove(id, out removed);
+        }
+
+        /// <summary>
+        /// Tries to update a value in the chunk.
+        /// </summary>
+        /// <param name="id">The id to update at.</param>
+        /// <param name="newValue">The new value to use.</param>
+        /// <param name="oldValue">The old value to make sure it wasn't updated in the mean time.</param>
+        /// <returns>True if the update was successful, otherwise false.</returns>
+        public bool TryUpdate(ObjectId id, Document newValue, Document oldValue)
+        {
+            return _newData.TryUpdate(id, newValue, oldValue);
         }
     }
 }

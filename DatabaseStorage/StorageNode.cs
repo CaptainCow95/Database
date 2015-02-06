@@ -14,6 +14,11 @@ namespace Database.Storage
     public class StorageNode : Node
     {
         /// <summary>
+        /// A list of the controller nodes.
+        /// </summary>
+        private List<NodeDefinition> _controllerNodes;
+
+        /// <summary>
         /// The database of the node.
         /// </summary>
         private Database _database;
@@ -22,6 +27,11 @@ namespace Database.Storage
         /// The settings of the storage node.
         /// </summary>
         private StorageNodeSettings _settings;
+
+        /// <summary>
+        /// The thread that attempts to reconnect to the necessary nodes.
+        /// </summary>
+        private Thread _updateThread;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="StorageNode"/> class.
@@ -45,9 +55,9 @@ namespace Database.Storage
         {
             BeforeStart();
 
-            List<NodeDefinition> controllerNodes = NodeDefinition.ParseConnectionString(_settings.ConnectionString);
+            _controllerNodes = NodeDefinition.ParseConnectionString(_settings.ConnectionString);
 
-            foreach (var def in controllerNodes)
+            foreach (var def in _controllerNodes)
             {
                 Message message = new Message(def, new JoinAttempt(NodeType.Storage, _settings.NodeName, _settings.Port, _settings.ToString()), true)
                 {
@@ -68,7 +78,7 @@ namespace Database.Storage
 
                     // success
                     JoinSuccess successData = (JoinSuccess)message.Response.Data;
-                    Connections[def].ConnectionEstablished(NodeType.Controller);
+                    Connections[def].ConnectionEstablished(def, NodeType.Controller);
                     if (successData.PrimaryController)
                     {
                         Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
@@ -76,6 +86,9 @@ namespace Database.Storage
                     }
                 }
             }
+
+            _updateThread = new Thread(UpdateThreadRun);
+            _updateThread.Start();
 
             while (Running)
             {
@@ -113,7 +126,7 @@ namespace Database.Storage
 
                 NodeDefinition nodeDef = new NodeDefinition(attempt.Name, attempt.Port);
                 RenameConnection(message.Address, nodeDef);
-                Connections[nodeDef].ConnectionEstablished(attempt.Type);
+                Connections[nodeDef].ConnectionEstablished(nodeDef, attempt.Type);
                 Message response = new Message(message, new JoinSuccess(false), false)
                 {
                     Address = nodeDef
@@ -137,6 +150,69 @@ namespace Database.Storage
         /// <inheritdoc />
         protected override void PrimaryChanged()
         {
+        }
+
+        /// <summary>
+        /// Attempts to reconnect to the necessary nodes.
+        /// </summary>
+        private void UpdateThreadRun()
+        {
+            Random rand = new Random();
+
+            int timeToWait = rand.Next(30, 120);
+            int i = 0;
+            while (i < timeToWait && Running)
+            {
+                Thread.Sleep(1000);
+                ++i;
+            }
+
+            while (Running)
+            {
+                timeToWait = rand.Next(30, 120);
+                i = 0;
+                while (i < timeToWait && Running)
+                {
+                    Thread.Sleep(1000);
+                    ++i;
+                }
+
+                var connections = GetConnectedNodes();
+                foreach (var def in _controllerNodes)
+                {
+                    if (!connections.Any(e => Equals(e.Item1, def)))
+                    {
+                        Logger.Log("Attempting to reconnect to " + def.ConnectionName, LogLevel.Info);
+
+                        Message message = new Message(def, new JoinAttempt(NodeType.Storage, _settings.NodeName, _settings.Port, _settings.ToString()), true)
+                        {
+                            SendWithoutConfirmation = true
+                        };
+
+                        SendMessage(message);
+                        message.BlockUntilDone();
+
+                        if (message.Success)
+                        {
+                            if (message.Response.Data is JoinFailure)
+                            {
+                                Logger.Log("Failed to join controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
+                                AfterStop();
+                                return;
+                            }
+
+                            // success
+                            JoinSuccess successData = (JoinSuccess)message.Response.Data;
+                            Connections[def].ConnectionEstablished(def, NodeType.Controller);
+                            if (successData.PrimaryController)
+                            {
+                                Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
+                                Primary = message.Address;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

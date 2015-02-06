@@ -67,6 +67,24 @@ namespace Database.Common.DataOperation
         /// <summary>
         /// Initializes a new instance of the <see cref="Document"/> class.
         /// </summary>
+        /// <param name="doc">The document to make a shallow copy of.</param>
+        public Document(Document doc)
+        {
+            if (!doc.Valid)
+            {
+                _valid = false;
+                return;
+            }
+
+            foreach (var item in doc)
+            {
+                _data.Add(item.Key, CopyItem(item.Value));
+            }
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Document"/> class.
+        /// </summary>
         /// <param name="reader">The JSON reader to initialize the document with.</param>
         internal Document(JsonTextReader reader)
         {
@@ -297,6 +315,28 @@ namespace Database.Common.DataOperation
             }
 
             writer.WriteEndObject();
+        }
+
+        /// <summary>
+        /// Shallow copies one item into another.
+        /// </summary>
+        /// <param name="item">The item to copy.</param>
+        /// <returns>A shallow copy of the item.</returns>
+        private DocumentEntry CopyItem(DocumentEntry item)
+        {
+            if (item.ValueType == DocumentEntryType.Document)
+            {
+                return new DocumentEntry(item.Key, DocumentEntryType.Document, new Document(item.ValueAsDocument));
+            }
+
+            if (item.ValueType == DocumentEntryType.Array)
+            {
+                List<DocumentEntry> copy = new List<DocumentEntry>();
+                item.ValueAsArray.ForEach(e => copy.Add(CopyItem(e)));
+                return new DocumentEntry(item.Key, DocumentEntryType.Array, copy);
+            }
+
+            return item;
         }
     }
 }

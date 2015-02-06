@@ -189,7 +189,7 @@ namespace Database.Controller
                             }
 
                             RenameConnection(message.Address, nodeDef);
-                            Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
+                            Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
                             Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false)
                             {
                                 Address = nodeDef
@@ -221,7 +221,7 @@ namespace Database.Controller
                         {
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
                             RenameConnection(message.Address, nodeDef);
-                            Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
+                            Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
                             Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false)
                             {
                                 Address = nodeDef
@@ -250,7 +250,7 @@ namespace Database.Controller
                         {
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
                             RenameConnection(message.Address, nodeDef);
-                            Connections[nodeDef].ConnectionEstablished(joinAttemptData.Type);
+                            Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
                             Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false)
                             {
                                 Address = nodeDef
@@ -276,7 +276,7 @@ namespace Database.Controller
                         break;
 
                     case NodeType.Console:
-                        Connections[message.Address].ConnectionEstablished(joinAttemptData.Type);
+                        Connections[message.Address].ConnectionEstablished(message.Address, joinAttemptData.Type);
                         SendMessage(new Message(message, new JoinSuccess(Equals(Primary, Self)), false));
                         break;
 
@@ -287,7 +287,7 @@ namespace Database.Controller
                         }
                         else
                         {
-                            Connections[message.Address].ConnectionEstablished(joinAttemptData.Type);
+                            Connections[message.Address].ConnectionEstablished(message.Address, joinAttemptData.Type);
                             SendMessage(new Message(message, new JoinSuccess(Equals(Primary, Self)), false));
 
                             SendQueryNodeConnectionMessage();
@@ -411,7 +411,7 @@ namespace Database.Controller
                 // success
                 Logger.Log("Connected to controller " + target.ConnectionName, LogLevel.Info);
                 JoinSuccess success = (JoinSuccess)message.Response.Data;
-                Connections[target].ConnectionEstablished(NodeType.Controller);
+                Connections[target].ConnectionEstablished(target, NodeType.Controller);
                 if (success.PrimaryController)
                 {
                     Logger.Log("Setting the primary controller to " + target.ConnectionName, LogLevel.Info);

@@ -1,4 +1,5 @@
-﻿using Database.Common.Messages;
+﻿using Amib.Threading;
+using Database.Common.Messages;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -22,7 +23,7 @@ namespace Database.Common
         /// <summary>
         /// The amount of seconds before a connection causes a timeout.
         /// </summary>
-        private const int ConnectionTimeout = 30;
+        private const int ConnectionTimeout = 60;
 
         /// <summary>
         /// The amount of seconds before a heartbeat is sent out to all connections.
@@ -40,6 +41,11 @@ namespace Database.Common
         private readonly Dictionary<NodeDefinition, Connection> _connections = new Dictionary<NodeDefinition, Connection>();
 
         /// <summary>
+        /// The lock to use when accessing the connection dictionary.
+        /// </summary>
+        private readonly ReaderWriterLockSlim _connectionsLock = new ReaderWriterLockSlim();
+
+        /// <summary>
         /// A collection of the current messages to be processed.
         /// </summary>
         private readonly Dictionary<NodeDefinition, List<byte>> _messagesReceived = new Dictionary<NodeDefinition, List<byte>>();
@@ -53,6 +59,11 @@ namespace Database.Common
         /// The port the node is running on.
         /// </summary>
         private readonly int? _port;
+
+        /// <summary>
+        /// The thread pool for the system to use.
+        /// </summary>
+        private readonly SmartThreadPool _threadPool = new SmartThreadPool(SmartThreadPool.DefaultIdleTimeout, 100, 10);
 
         /// <summary>
         /// A collection of messages that are waiting for responses.
@@ -157,10 +168,9 @@ namespace Database.Common
         {
             List<Tuple<NodeDefinition, NodeType>> list = new List<Tuple<NodeDefinition, NodeType>>();
 
-            lock (_connections)
-            {
-                list.AddRange(_connections.Select(item => new Tuple<NodeDefinition, NodeType>(item.Key, item.Value.NodeType)));
-            }
+            _connectionsLock.EnterReadLock();
+            list.AddRange(_connections.Select(item => new Tuple<NodeDefinition, NodeType>(item.Key, item.Value.NodeType)));
+            _connectionsLock.ExitReadLock();
 
             return list.AsReadOnly();
         }
@@ -184,6 +194,8 @@ namespace Database.Common
                     _connectionListener.Stop();
                 }
             }
+
+            _threadPool.Shutdown();
         }
 
         /// <summary>
@@ -191,6 +203,8 @@ namespace Database.Common
         /// </summary>
         protected void BeforeStart()
         {
+            _threadPool.Start();
+
             _running = true;
 
             _messageListenerThread = new Thread(RunMessageListener);
@@ -244,36 +258,36 @@ namespace Database.Common
             }
 
             // MAKE SURE THIS LOCK ORDER IS THE SAME EVERYWHERE
-            lock (_connections)
+            _connectionsLock.EnterWriteLock();
+            lock (_messagesReceived)
             {
-                lock (_messagesReceived)
+                if (_connections.ContainsKey(currentName))
                 {
-                    if (_connections.ContainsKey(currentName))
+                    // Most likely means that a node disconnected and is trying to reconnect before the connection timeout time.
+                    if (_connections.ContainsKey(newName))
                     {
-                        // Most likely means that a node disconnected and is trying to reconnect before the connection timeout time.
-                        if (_connections.ContainsKey(newName))
-                        {
-                            _connections.Remove(newName);
-                        }
+                        _connections.Remove(newName);
+                    }
 
-                        if (_messagesReceived.ContainsKey(newName))
-                        {
-                            _messagesReceived.Remove(newName);
-                        }
+                    if (_messagesReceived.ContainsKey(newName))
+                    {
+                        _messagesReceived.Remove(newName);
+                    }
 
-                        var connectionValue = _connections[currentName];
-                        _connections.Remove(currentName);
-                        _connections.Add(newName, connectionValue);
+                    var connectionValue = _connections[currentName];
+                    _connections.Remove(currentName);
+                    _connections.Add(newName, connectionValue);
 
-                        if (_messagesReceived.ContainsKey(currentName))
-                        {
-                            var messageValue = _messagesReceived[currentName];
-                            _messagesReceived.Remove(currentName);
-                            _messagesReceived.Add(newName, messageValue);
-                        }
+                    if (_messagesReceived.ContainsKey(currentName))
+                    {
+                        var messageValue = _messagesReceived[currentName];
+                        _messagesReceived.Remove(currentName);
+                        _messagesReceived.Add(newName, messageValue);
                     }
                 }
             }
+
+            _connectionsLock.ExitWriteLock();
         }
 
         /// <summary>
@@ -327,11 +341,13 @@ namespace Database.Common
             }
 
             Connection connection = new Connection(incoming);
-            lock (_connections)
-            {
-                NodeDefinition def = new NodeDefinition(((IPEndPoint)incoming.Client.RemoteEndPoint).Address.ToString(), ((IPEndPoint)incoming.Client.RemoteEndPoint).Port);
-                _connections.Add(def, connection);
-            }
+
+            _connectionsLock.EnterWriteLock();
+
+            NodeDefinition def = new NodeDefinition(((IPEndPoint)incoming.Client.RemoteEndPoint).Address.ToString(), ((IPEndPoint)incoming.Client.RemoteEndPoint).Port);
+            _connections.Add(def, connection);
+
+            _connectionsLock.ExitWriteLock();
         }
 
         /// <summary>
@@ -363,7 +379,7 @@ namespace Database.Common
             }
             else if (!(message.Data is Heartbeat))
             {
-                ThreadPool.QueueUserWorkItem(MessageReceivedHandler, message);
+                _threadPool.QueueWorkItem(MessageReceivedHandler, message);
             }
         }
 
@@ -376,42 +392,44 @@ namespace Database.Common
             {
                 DateTime now = DateTime.UtcNow;
                 List<Tuple<NodeDefinition, NodeType>> connectionsToRemove = new List<Tuple<NodeDefinition, NodeType>>();
-                lock (_connections)
+
+                _connectionsLock.EnterWriteLock();
+
+                foreach (var connection in _connections)
                 {
-                    foreach (var connection in _connections)
+                    if (!connection.Value.Client.Connected || (now - connection.Value.LastActiveTime).TotalSeconds > ConnectionTimeout || connection.Value.Status == ConnectionStatus.Disconnected)
                     {
-                        if (!connection.Value.Client.Connected || (now - connection.Value.LastActiveTime).TotalSeconds > ConnectionTimeout || connection.Value.Status == ConnectionStatus.Disconnected)
-                        {
-                            connectionsToRemove.Add(new Tuple<NodeDefinition, NodeType>(connection.Key, connection.Value.NodeType));
-                        }
-                    }
-
-                    lock (_messagesReceived)
-                    {
-                        foreach (var connection in connectionsToRemove)
-                        {
-                            Logger.Log("Connection lost to " + connection.Item1.ConnectionName, LogLevel.Info);
-                            _connections.Remove(connection.Item1);
-                            _messagesReceived.Remove(connection.Item1);
-
-                            lock (_waitingForResponses)
-                            {
-                                List<uint> messagesToRemove = new List<uint>();
-                                foreach (var item in _waitingForResponses)
-                                {
-                                    if (Equals(item.Value.Item1.Address, connection.Item1))
-                                    {
-                                        messagesToRemove.Add(item.Key);
-                                    }
-                                }
-
-                                messagesToRemove.ForEach(e => _waitingForResponses.Remove(e));
-                            }
-
-                            ThreadPool.QueueUserWorkItem(ConnectionLostHandler, connection);
-                        }
+                        connectionsToRemove.Add(new Tuple<NodeDefinition, NodeType>(connection.Key, connection.Value.NodeType));
                     }
                 }
+
+                lock (_messagesReceived)
+                {
+                    foreach (var connection in connectionsToRemove)
+                    {
+                        Logger.Log("Connection lost to " + connection.Item1.ConnectionName, LogLevel.Info);
+                        _connections.Remove(connection.Item1);
+                        _messagesReceived.Remove(connection.Item1);
+
+                        lock (_waitingForResponses)
+                        {
+                            List<uint> messagesToRemove = new List<uint>();
+                            foreach (var item in _waitingForResponses)
+                            {
+                                if (Equals(item.Value.Item1.Address, connection.Item1))
+                                {
+                                    messagesToRemove.Add(item.Key);
+                                }
+                            }
+
+                            messagesToRemove.ForEach(e => _waitingForResponses.Remove(e));
+                        }
+
+                        _threadPool.QueueWorkItem(ConnectionLostHandler, connection);
+                    }
+                }
+
+                _connectionsLock.ExitWriteLock();
 
                 // Keep thread responsive to shutdown while waiting for next run (5 seconds).
                 int i = 0;
@@ -435,13 +453,14 @@ namespace Database.Common
 
             while (_running)
             {
-                lock (_connections)
+                _connectionsLock.EnterReadLock();
+
+                foreach (var connection in _connections)
                 {
-                    foreach (var connection in _connections)
-                    {
-                        SendMessage(new Message(connection.Key, new Heartbeat(), false));
-                    }
+                    SendMessage(new Message(connection.Key, new Heartbeat(), false));
                 }
+
+                _connectionsLock.ExitReadLock();
 
                 for (int i = 0; i < HeartbeatInterval && _running; ++i)
                 {
@@ -459,32 +478,33 @@ namespace Database.Common
             while (_running)
             {
                 // MAKE SURE THIS LOCK ORDER IS THE SAME EVERYWHERE
-                lock (_connections)
+                _connectionsLock.EnterReadLock();
+
+                lock (_messagesReceived)
                 {
-                    lock (_messagesReceived)
+                    foreach (var connection in _connections)
                     {
-                        foreach (var connection in _connections)
+                        if (!connection.Value.Client.Connected)
                         {
-                            if (!connection.Value.Client.Connected)
-                            {
-                                continue;
-                            }
+                            continue;
+                        }
 
-                            if (!_messagesReceived.ContainsKey(connection.Key))
-                            {
-                                _messagesReceived.Add(connection.Key, new List<byte>());
-                            }
+                        if (!_messagesReceived.ContainsKey(connection.Key))
+                        {
+                            _messagesReceived.Add(connection.Key, new List<byte>());
+                        }
 
-                            NetworkStream stream = connection.Value.Client.GetStream();
-                            while (stream.DataAvailable)
-                            {
-                                int bytesRead = stream.Read(messageBuffer, 0, MessageBufferSize);
-                                _messagesReceived[connection.Key].AddRange(messageBuffer.Take(bytesRead));
-                                connection.Value.ResetLastActiveTime();
-                            }
+                        NetworkStream stream = connection.Value.Client.GetStream();
+                        while (stream.DataAvailable)
+                        {
+                            int bytesRead = stream.Read(messageBuffer, 0, MessageBufferSize);
+                            _messagesReceived[connection.Key].AddRange(messageBuffer.Take(bytesRead));
+                            connection.Value.ResetLastActiveTime();
                         }
                     }
                 }
+
+                _connectionsLock.ExitReadLock();
 
                 List<Tuple<NodeDefinition, byte[]>> messages = new List<Tuple<NodeDefinition, byte[]>>();
                 lock (_messagesReceived)
@@ -525,7 +545,7 @@ namespace Database.Common
                     {
                         var message = _messagesToSend.Dequeue();
 
-                        ThreadPool.QueueUserWorkItem(SendMessageWorkItem, message);
+                        _threadPool.QueueWorkItem(SendMessageWorkItem, message, WorkItemPriority.Highest);
                     }
                 }
 
@@ -542,26 +562,29 @@ namespace Database.Common
             Message message = (Message)obj;
 
             bool createConnection = false;
-            lock (_connections)
+            _connectionsLock.EnterReadLock();
+
+            if (!_connections.ContainsKey(message.Address) && message.SendWithoutConfirmation)
             {
-                if (!_connections.ContainsKey(message.Address) && message.SendWithoutConfirmation)
-                {
-                    createConnection = true;
-                }
+                createConnection = true;
             }
+
+            _connectionsLock.ExitReadLock();
 
             if (createConnection)
             {
                 try
                 {
                     TcpClient client = new TcpClient(message.Address.Hostname, message.Address.Port);
-                    lock (_connections)
+
+                    _connectionsLock.EnterWriteLock();
+
+                    if (!_connections.ContainsKey(message.Address))
                     {
-                        if (!_connections.ContainsKey(message.Address))
-                        {
-                            _connections.Add(message.Address, new Connection(client));
-                        }
+                        _connections.Add(message.Address, new Connection(client));
                     }
+
+                    _connectionsLock.ExitWriteLock();
                 }
                 catch
                 {
@@ -570,49 +593,50 @@ namespace Database.Common
                 }
             }
 
-            lock (_connections)
+            _connectionsLock.EnterReadLock();
+
+            if (_connections.ContainsKey(message.Address) && (_connections[message.Address].Status == ConnectionStatus.Connected || message.SendWithoutConfirmation))
             {
-                if (_connections.ContainsKey(message.Address) && (_connections[message.Address].Status == ConnectionStatus.Connected || message.SendWithoutConfirmation))
+                try
                 {
-                    try
+                    if (message.WaitingForResponse)
                     {
-                        if (message.WaitingForResponse)
-                        {
-                            lock (_waitingForResponses)
-                            {
-                                _waitingForResponses.Add(message.ID, new Tuple<Message, DateTime>(message, DateTime.UtcNow));
-                            }
-                        }
-
-                        byte[] dataToSend = message.EncodeMessage();
-                        var stream = _connections[message.Address].Client.GetStream();
-                        stream.Write(dataToSend, 0, dataToSend.Length);
-
-                        message.Status = message.WaitingForResponse
-                            ? MessageStatus.WaitingForResponse
-                            : MessageStatus.Sent;
-                    }
-                    catch
-                    {
-                        message.Status = MessageStatus.SendingFailure;
-                        _connections[message.Address].Disconnect();
-
                         lock (_waitingForResponses)
                         {
-                            _waitingForResponses.Remove(message.ID);
+                            _waitingForResponses.Add(message.ID, new Tuple<Message, DateTime>(message, DateTime.UtcNow));
                         }
                     }
+
+                    byte[] dataToSend = message.EncodeMessage();
+                    var stream = _connections[message.Address].Client.GetStream();
+                    stream.Write(dataToSend, 0, dataToSend.Length);
+
+                    message.Status = message.WaitingForResponse
+                        ? MessageStatus.WaitingForResponse
+                        : MessageStatus.Sent;
                 }
-                else
+                catch
                 {
                     message.Status = MessageStatus.SendingFailure;
+                    _connections[message.Address].Disconnect();
 
-                    if (_connections.ContainsKey(message.Address))
+                    lock (_waitingForResponses)
                     {
-                        _connections[message.Address].Disconnect();
+                        _waitingForResponses.Remove(message.ID);
                     }
                 }
             }
+            else
+            {
+                message.Status = MessageStatus.SendingFailure;
+
+                if (_connections.ContainsKey(message.Address))
+                {
+                    _connections[message.Address].Disconnect();
+                }
+            }
+
+            _connectionsLock.ExitReadLock();
         }
     }
 }

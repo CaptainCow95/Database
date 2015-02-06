@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace Database.Storage
 {
@@ -16,6 +17,11 @@ namespace Database.Storage
         /// The chunks contained by this database.
         /// </summary>
         private readonly List<DatabaseChunk> _chunks = new List<DatabaseChunk>();
+
+        /// <summary>
+        /// The lock to use when accessing the chunks list.
+        /// </summary>
+        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
 
         /// <summary>
         /// Processes an operation.
@@ -76,22 +82,23 @@ namespace Database.Storage
         /// <param name="chunks">The new chunk list.</param>
         public void ResetChunkList(List<Tuple<ChunkMarker, ChunkMarker>> chunks)
         {
-            lock (_chunks)
-            {
-                foreach (var item in chunks)
-                {
-                    if (!_chunks.Any(e => Equals(e.Start, item.Item1) && Equals(e.End, item.Item2)))
-                    {
-                        _chunks.Add(new DatabaseChunk(item.Item1, item.Item2));
-                    }
-                }
+            _lock.EnterWriteLock();
 
-                var chunksToRemove = _chunks.Where(item => !chunks.Any(e => Equals(e.Item1, item.Start) && Equals(e.Item2, item.End))).ToList();
-                foreach (var item in chunksToRemove)
+            foreach (var item in chunks)
+            {
+                if (!_chunks.Any(e => Equals(e.Start, item.Item1) && Equals(e.End, item.Item2)))
                 {
-                    _chunks.Remove(item);
+                    _chunks.Add(new DatabaseChunk(item.Item1, item.Item2));
                 }
             }
+
+            var chunksToRemove = _chunks.Where(item => !chunks.Any(e => Equals(e.Item1, item.Start) && Equals(e.Item2, item.End))).ToList();
+            foreach (var item in chunksToRemove)
+            {
+                _chunks.Remove(item);
+            }
+
+            _lock.ExitWriteLock();
         }
 
         /// <summary>
@@ -111,10 +118,7 @@ namespace Database.Storage
         /// <returns>The chunk the specified id belongs in.</returns>
         private DatabaseChunk GetChunk(ObjectId id)
         {
-            lock (_chunks)
-            {
-                return _chunks.Single(e => ChunkMarker.IsBetween(e.Start, e.End, id.ToString()));
-            }
+            return _chunks.Single(e => ChunkMarker.IsBetween(e.Start, e.End, id.ToString()));
         }
 
         /// <summary>
@@ -131,21 +135,13 @@ namespace Database.Storage
                 return op.ErrorMessage;
             }
 
-            bool success = false;
-            lock (_chunks)
-            {
-                if (GetChunk(op.Id).Add(op.Id, op.Document))
-                {
-                    success = true;
-                }
-            }
+            _lock.EnterReadLock();
 
-            if (success)
-            {
-                return new DataOperationResult(op.Document);
-            }
+            bool success = GetChunk(op.Id).TryAdd(op.Id, op.Document);
 
-            return new DataOperationResult(ErrorCodes.InvalidId, "A key with the specified ObjectId already exists.");
+            _lock.ExitReadLock();
+
+            return success ? new DataOperationResult(op.Document) : new DataOperationResult(ErrorCodes.InvalidId, "A key with the specified ObjectId already exists.");
         }
 
         /// <summary>
@@ -164,14 +160,15 @@ namespace Database.Storage
 
             List<QueryItem> queryItems = BuildQueryItems(op.Fields);
 
+            _lock.EnterReadLock();
+
             List<Document> results = new List<Document>();
-            lock (_chunks)
+            foreach (var item in _chunks)
             {
-                foreach (var item in _chunks)
-                {
-                    results.AddRange(item.Query(queryItems));
-                }
+                results.AddRange(item.Query(queryItems));
             }
+
+            _lock.ExitReadLock();
 
             StringBuilder builder = new StringBuilder();
             builder.Append("{");
@@ -205,12 +202,14 @@ namespace Database.Storage
                 return op.ErrorMessage;
             }
 
-            lock (_chunks)
-            {
-                GetChunk(op.DocumentId).Remove(op.DocumentId);
-            }
+            _lock.EnterReadLock();
 
-            return new DataOperationResult(new Document());
+            Document removed;
+            GetChunk(op.DocumentId).TryRemove(op.DocumentId, out removed);
+
+            _lock.ExitReadLock();
+
+            return new DataOperationResult(removed);
         }
 
         /// <summary>
@@ -226,24 +225,31 @@ namespace Database.Storage
                 return op.ErrorMessage;
             }
 
+            _lock.EnterReadLock();
+
             var success = false;
             Document toUpdate = null;
-            lock (_chunks)
+            var chunk = GetChunk(op.DocumentId);
+
+            Document value;
+            bool found = chunk.TryGet(op.DocumentId, out value);
+
+            if (!found)
             {
-                var chunk = GetChunk(op.DocumentId);
-
-                if (chunk.ContainsKey(op.DocumentId))
-                {
-                    toUpdate = chunk[op.DocumentId];
-                    toUpdate.Merge(op.UpdateFields);
-                    foreach (var field in op.RemoveFields)
-                    {
-                        toUpdate.RemoveField(field);
-                    }
-
-                    success = true;
-                }
+                _lock.ExitReadLock();
+                return new DataOperationResult(ErrorCodes.InvalidId, "The specified document was not found.");
             }
+
+            toUpdate = new Document(value);
+            toUpdate.Merge(op.UpdateFields);
+            foreach (var field in op.RemoveFields)
+            {
+                toUpdate.RemoveField(field);
+            }
+
+            success = chunk.TryUpdate(op.DocumentId, toUpdate, value);
+
+            _lock.ExitReadLock();
 
             if (!success)
             {

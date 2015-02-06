@@ -43,11 +43,14 @@ namespace Database.Common
         /// <summary>
         /// Marks the connection as established.
         /// </summary>
+        /// <param name="def">The node definition, only used for logging at the moment.</param>
         /// <param name="type">The node type that the connection is to.</param>
-        public void ConnectionEstablished(NodeType type)
+        public void ConnectionEstablished(NodeDefinition def, NodeType type)
         {
             NodeType = type;
             Status = ConnectionStatus.Connected;
+
+            Logger.Log("Connected to " + Enum.GetName(typeof(NodeType), type) + " node at " + def.ConnectionName, LogLevel.Info);
         }
 
         /// <summary>

@@ -117,7 +117,7 @@ namespace Database.Console
                     System.Console.WriteLine("Connected to " + def.ConnectionName);
                     _connectedDef = def;
                     _connected = true;
-                    Connections[def].ConnectionEstablished(NodeType.Controller);
+                    Connections[def].ConnectionEstablished(def, NodeType.Controller);
                 }
             }
             else

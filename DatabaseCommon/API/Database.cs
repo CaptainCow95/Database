@@ -161,7 +161,7 @@ namespace Database.Common.API
                         }
 
                         JoinSuccess successData = (JoinSuccess)message.Response.Data;
-                        Connections[def].ConnectionEstablished(NodeType.Controller);
+                        Connections[def].ConnectionEstablished(message.Address, NodeType.Controller);
                         if (successData.PrimaryController)
                         {
                             Primary = message.Address;
@@ -253,7 +253,7 @@ namespace Database.Common.API
                                     }
                                     else
                                     {
-                                        Connections[item].ConnectionEstablished(NodeType.Query);
+                                        Connections[item].ConnectionEstablished(attempt.Address, NodeType.Query);
                                     }
                                 }
                             }

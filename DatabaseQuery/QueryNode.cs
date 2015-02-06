@@ -19,14 +19,29 @@ namespace Database.Query
         private List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>> _chunkList = new List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>>();
 
         /// <summary>
+        /// The lock to use when accessing the chunk list.
+        /// </summary>
+        private ReaderWriterLockSlim _chunkListLock = new ReaderWriterLockSlim();
+
+        /// <summary>
         /// A list of the connected storage nodes.
         /// </summary>
         private List<NodeDefinition> _connectedStorageNodes = new List<NodeDefinition>();
 
         /// <summary>
+        /// A list of the controller nodes.
+        /// </summary>
+        private List<NodeDefinition> _controllerNodes;
+
+        /// <summary>
         /// The settings of the query node.
         /// </summary>
         private QueryNodeSettings _settings;
+
+        /// <summary>
+        /// The thread that attempts to reconnect to the necessary nodes.
+        /// </summary>
+        private Thread _updateThread;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="QueryNode"/> class.
@@ -49,9 +64,9 @@ namespace Database.Query
         {
             BeforeStart();
 
-            List<NodeDefinition> controllerNodes = NodeDefinition.ParseConnectionString(_settings.ConnectionString);
+            _controllerNodes = NodeDefinition.ParseConnectionString(_settings.ConnectionString);
 
-            foreach (var def in controllerNodes)
+            foreach (var def in _controllerNodes)
             {
                 Message message = new Message(def, new JoinAttempt(NodeType.Query, _settings.NodeName, _settings.Port, _settings.ToString()), true)
                 {
@@ -72,7 +87,7 @@ namespace Database.Query
 
                     // success
                     JoinSuccess successData = (JoinSuccess)message.Response.Data;
-                    Connections[def].ConnectionEstablished(NodeType.Controller);
+                    Connections[def].ConnectionEstablished(def, NodeType.Controller);
                     if (successData.PrimaryController)
                     {
                         Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
@@ -80,6 +95,9 @@ namespace Database.Query
                     }
                 }
             }
+
+            _updateThread = new Thread(UpdateThreadRun);
+            _updateThread.Start();
 
             while (Running)
             {
@@ -123,7 +141,7 @@ namespace Database.Query
                     SendMessage(new Message(message, new JoinFailure("The connection strings do not match."), false));
                 }
 
-                Connections[message.Address].ConnectionEstablished(attempt.Type);
+                Connections[message.Address].ConnectionEstablished(message.Address, attempt.Type);
                 SendMessage(new Message(message, new JoinSuccess(false), false));
             }
             else if (message.Data is NodeList)
@@ -153,13 +171,11 @@ namespace Database.Query
                                 }
                                 else
                                 {
-                                    Connections[item].ConnectionEstablished(NodeType.Storage);
+                                    Connections[item].ConnectionEstablished(item, NodeType.Storage);
                                 }
                             }
                         }
                     }
-
-                    // TODO: Actually connect to any new storage nodes.
                 }
             }
             else if (message.Data is DataOperation)
@@ -178,10 +194,9 @@ namespace Database.Query
             }
             else if (message.Data is ChunkListUpdate)
             {
-                lock (_chunkList)
-                {
-                    _chunkList = ((ChunkListUpdate)message.Data).ChunkList;
-                }
+                _chunkListLock.EnterWriteLock();
+                _chunkList = ((ChunkListUpdate)message.Data).ChunkList;
+                _chunkListLock.ExitWriteLock();
             }
         }
 
@@ -204,18 +219,11 @@ namespace Database.Query
                 return addOperation.ErrorMessage;
             }
 
-            NodeDefinition node = null;
-            lock (_chunkList)
-            {
-                foreach (var item in _chunkList)
-                {
-                    if (ChunkMarker.IsBetween(item.Item1, item.Item2, addOperation.Id.ToString()))
-                    {
-                        node = item.Item3;
-                        break;
-                    }
-                }
-            }
+            _chunkListLock.EnterReadLock();
+            var chunk = _chunkList.SingleOrDefault(e => ChunkMarker.IsBetween(e.Item1, e.Item2, addOperation.Id.ToString()));
+            _chunkListLock.ExitReadLock();
+
+            NodeDefinition node = chunk == null ? null : chunk.Item3;
 
             if (node == null)
             {
@@ -333,18 +341,11 @@ namespace Database.Query
                 return removeOperation.ErrorMessage;
             }
 
-            NodeDefinition node = null;
-            lock (_chunkList)
-            {
-                foreach (var item in _chunkList)
-                {
-                    if (ChunkMarker.IsBetween(item.Item1, item.Item2, removeOperation.DocumentId.ToString()))
-                    {
-                        node = item.Item3;
-                        break;
-                    }
-                }
-            }
+            _chunkListLock.EnterReadLock();
+            var chunk = _chunkList.SingleOrDefault(e => ChunkMarker.IsBetween(e.Item1, e.Item2, removeOperation.DocumentId.ToString()));
+            _chunkListLock.ExitReadLock();
+
+            NodeDefinition node = chunk == null ? null : chunk.Item3;
 
             if (node == null)
             {
@@ -376,18 +377,11 @@ namespace Database.Query
                 return updateOperation.ErrorMessage;
             }
 
-            NodeDefinition node = null;
-            lock (_chunkList)
-            {
-                foreach (var item in _chunkList)
-                {
-                    if (ChunkMarker.IsBetween(item.Item1, item.Item2, updateOperation.DocumentId.ToString()))
-                    {
-                        node = item.Item3;
-                        break;
-                    }
-                }
-            }
+            _chunkListLock.EnterReadLock();
+            var chunk = _chunkList.SingleOrDefault(e => ChunkMarker.IsBetween(e.Item1, e.Item2, updateOperation.DocumentId.ToString()));
+            _chunkListLock.ExitReadLock();
+
+            NodeDefinition node = chunk == null ? null : chunk.Item3;
 
             if (node == null)
             {
@@ -403,6 +397,69 @@ namespace Database.Query
             }
 
             return new DataOperationResult(ErrorCodes.FailedMessage, "Failed to send message to storage node.");
+        }
+
+        /// <summary>
+        /// Attempts to reconnect to the necessary nodes.
+        /// </summary>
+        private void UpdateThreadRun()
+        {
+            Random rand = new Random();
+
+            int timeToWait = rand.Next(30, 120);
+            int i = 0;
+            while (i < timeToWait && Running)
+            {
+                Thread.Sleep(1000);
+                ++i;
+            }
+
+            while (Running)
+            {
+                timeToWait = rand.Next(30, 120);
+                i = 0;
+                while (i < timeToWait && Running)
+                {
+                    Thread.Sleep(1000);
+                    ++i;
+                }
+
+                var connections = GetConnectedNodes();
+                foreach (var def in _controllerNodes.Concat(_connectedStorageNodes))
+                {
+                    if (!connections.Any(e => Equals(e.Item1, def)))
+                    {
+                        Logger.Log("Attempting to reconnect to " + def.ConnectionName, LogLevel.Info);
+
+                        Message message = new Message(def, new JoinAttempt(NodeType.Query, _settings.NodeName, _settings.Port, _settings.ToString()), true)
+                        {
+                            SendWithoutConfirmation = true
+                        };
+
+                        SendMessage(message);
+                        message.BlockUntilDone();
+
+                        if (message.Success)
+                        {
+                            if (message.Response.Data is JoinFailure)
+                            {
+                                Logger.Log("Failed to join controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
+                                AfterStop();
+                                return;
+                            }
+
+                            // success
+                            JoinSuccess successData = (JoinSuccess)message.Response.Data;
+                            Connections[def].ConnectionEstablished(def, NodeType.Controller);
+                            if (successData.PrimaryController)
+                            {
+                                Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
+                                Primary = message.Address;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
