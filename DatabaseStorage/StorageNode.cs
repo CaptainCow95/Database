@@ -73,16 +73,19 @@ namespace Database.Storage
                     {
                         Logger.Log("Failed to join controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
                         AfterStop();
+                        _database.Shutdown();
                         return;
                     }
 
                     // success
                     JoinSuccess successData = (JoinSuccess)message.Response.Data;
                     Connections[def].ConnectionEstablished(def, NodeType.Controller);
-                    if (successData.PrimaryController)
+                    if (successData.Data["PrimaryController"].ValueAsBoolean)
                     {
                         Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
                         Primary = message.Address;
+
+                        _database.SetMaxChunkItemCount(successData.Data["MaxChunkItemCount"].ValueAsInteger);
                     }
                 }
             }
@@ -96,6 +99,7 @@ namespace Database.Storage
             }
 
             AfterStop();
+            _database.Shutdown();
         }
 
         /// <inheritdoc />
@@ -127,7 +131,7 @@ namespace Database.Storage
                 NodeDefinition nodeDef = new NodeDefinition(attempt.Name, attempt.Port);
                 RenameConnection(message.Address, nodeDef);
                 Connections[nodeDef].ConnectionEstablished(nodeDef, attempt.Type);
-                Message response = new Message(message, new JoinSuccess(false), false)
+                Message response = new Message(message, new JoinSuccess(new Document()), false)
                 {
                     Address = nodeDef
                 };
@@ -204,7 +208,7 @@ namespace Database.Storage
                             // success
                             JoinSuccess successData = (JoinSuccess)message.Response.Data;
                             Connections[def].ConnectionEstablished(def, NodeType.Controller);
-                            if (successData.PrimaryController)
+                            if (successData.Data["PrimaryController"].ValueAsBoolean)
                             {
                                 Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
                                 Primary = message.Address;

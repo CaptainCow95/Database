@@ -1,4 +1,6 @@
-﻿namespace Database.Common.Messages
+﻿using Database.Common.DataOperation;
+
+namespace Database.Common.Messages
 {
     /// <summary>
     /// A message to indicate that the join was successful.
@@ -6,17 +8,17 @@
     public class JoinSuccess : BaseMessageData
     {
         /// <summary>
-        /// A value indicating whether the node is the primary controller.
+        /// The data sent by the node being joined.
         /// </summary>
-        private readonly bool _primaryController;
+        private readonly Document _data;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="JoinSuccess"/> class.
         /// </summary>
-        /// <param name="primaryController">Whether the node is the primary controller.</param>
-        public JoinSuccess(bool primaryController)
+        /// <param name="data">The data sent by the node being joined.</param>
+        public JoinSuccess(Document data)
         {
-            _primaryController = primaryController;
+            _data = data;
         }
 
         /// <summary>
@@ -26,21 +28,21 @@
         /// <param name="index">The index at which to start reading from.</param>
         public JoinSuccess(byte[] data, int index)
         {
-            _primaryController = ByteArrayHelper.ToBoolean(data, ref index);
+            _data = new Document(ByteArrayHelper.ToString(data, ref index));
         }
 
         /// <summary>
-        /// Gets a value indicating whether the node is the primary controller.
+        /// Gets the data sent by the node being joined.
         /// </summary>
-        public bool PrimaryController
+        public Document Data
         {
-            get { return _primaryController; }
+            get { return _data; }
         }
 
         /// <inheritdoc />
         protected override byte[] EncodeInternal()
         {
-            return ByteArrayHelper.ToBytes(_primaryController);
+            return ByteArrayHelper.ToBytes(_data.ToJson());
         }
 
         /// <inheritdoc />

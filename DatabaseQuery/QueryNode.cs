@@ -88,7 +88,7 @@ namespace Database.Query
                     // success
                     JoinSuccess successData = (JoinSuccess)message.Response.Data;
                     Connections[def].ConnectionEstablished(def, NodeType.Controller);
-                    if (successData.PrimaryController)
+                    if (successData.Data["PrimaryController"].ValueAsBoolean)
                     {
                         Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
                         Primary = message.Address;
@@ -142,7 +142,7 @@ namespace Database.Query
                 }
 
                 Connections[message.Address].ConnectionEstablished(message.Address, attempt.Type);
-                SendMessage(new Message(message, new JoinSuccess(false), false));
+                SendMessage(new Message(message, new JoinSuccess(new Document()), false));
             }
             else if (message.Data is NodeList)
             {
@@ -451,7 +451,9 @@ namespace Database.Query
                             // success
                             JoinSuccess successData = (JoinSuccess)message.Response.Data;
                             Connections[def].ConnectionEstablished(def, NodeType.Controller);
-                            if (successData.PrimaryController)
+
+                            // If it is a controller and is the primary controller.
+                            if (successData.Data.ContainsKey("PrimaryController") && successData.Data["PrimaryController"].ValueAsBoolean)
                             {
                                 Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
                                 Primary = message.Address;

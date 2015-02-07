@@ -38,6 +38,11 @@
         /// <summary>
         /// The message was received from another node.
         /// </summary>
-        Received
+        Received,
+
+        /// <summary>
+        /// The message failed to get a response before the connection was severed.
+        /// </summary>
+        ResponseFailure
     }
 }

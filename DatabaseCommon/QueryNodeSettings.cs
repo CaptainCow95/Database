@@ -10,22 +10,22 @@ namespace Database.Common
         /// <summary>
         /// The default connection string.
         /// </summary>
-        private const string ConnectionStringDefault = "";
+        public const string ConnectionStringDefault = "";
 
         /// <summary>
         /// The default log level.
         /// </summary>
-        private const LogLevel LogLevelDefault = LogLevel.Warning;
+        public const LogLevel LogLevelDefault = LogLevel.Warning;
 
         /// <summary>
         /// The default node name.
         /// </summary>
-        private const string NodeNameDefault = "localhost";
+        public const string NodeNameDefault = "localhost";
 
         /// <summary>
         /// The default port.
         /// </summary>
-        private const int PortDefault = 5200;
+        public const int PortDefault = 5200;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="QueryNodeSettings"/> class.

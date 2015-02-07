@@ -10,38 +10,32 @@ namespace Database.Common
         /// <summary>
         /// The default connection string.
         /// </summary>
-        private const string ConnectionStringDefault = "";
+        public const string ConnectionStringDefault = "";
 
         /// <summary>
         /// The default log level.
         /// </summary>
-        private const LogLevel LogLevelDefault = LogLevel.Warning;
+        public const LogLevel LogLevelDefault = LogLevel.Warning;
 
         /// <summary>
         /// The default maximum number of items in a chunk before they are split.
         /// </summary>
-        private const int MaxChunkItemCountDefault = 1000;
-
-        /// <summary>
-        /// The default maximum chunk size before they are split.
-        /// </summary>
-        /// <remarks>Maximum size defaults to 64kb.</remarks>
-        private const int MaxChunkSizeDefault = 64 * 1024;
+        public const int MaxChunkItemCountDefault = 1000;
 
         /// <summary>
         /// The default port.
         /// </summary>
-        private const int PortDefault = 5000;
+        public const int PortDefault = 5000;
 
         /// <summary>
         /// The default number of redundant nodes per location.
         /// </summary>
-        private const int RedundantNodesPerLocationDefault = 3;
+        public const int RedundantNodesPerLocationDefault = 3;
 
         /// <summary>
         /// The default port of the web interface.
         /// </summary>
-        private const int WebInterfacePortDefault = 5001;
+        public const int WebInterfacePortDefault = 5001;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ControllerNodeSettings"/> class.
@@ -60,7 +54,6 @@ namespace Database.Common
         {
             ConnectionString = ConnectionStringDefault;
             MaxChunkItemCount = MaxChunkItemCountDefault;
-            MaxChunkSize = MaxChunkSizeDefault;
             Port = PortDefault;
             RedundantNodesPerLocation = RedundantNodesPerLocationDefault;
             WebInterfacePort = WebInterfacePortDefault;
@@ -83,11 +76,6 @@ namespace Database.Common
         public int MaxChunkItemCount { get; private set; }
 
         /// <summary>
-        /// Gets the maximum chunk size before they are split.
-        /// </summary>
-        public int MaxChunkSize { get; private set; }
-
-        /// <summary>
         /// Gets the port.
         /// </summary>
         public int Port { get; private set; }
@@ -108,7 +96,6 @@ namespace Database.Common
             ConnectionString = ReadString(settings, "ConnectionString", ConnectionStringDefault);
             Port = ReadInt32(settings, "Port", PortDefault);
             WebInterfacePort = ReadInt32(settings, "WebInterfacePort", WebInterfacePortDefault);
-            MaxChunkSize = ReadInt32(settings, "MaxChunkSize", MaxChunkSizeDefault);
             MaxChunkItemCount = ReadInt32(settings, "MaxChunkItemCount", MaxChunkItemCountDefault);
             RedundantNodesPerLocation = ReadInt32(settings, "RedundantNodesPerLocation", RedundantNodesPerLocationDefault);
             LogLevel = ReadEnum(settings, "LogLevel", LogLevelDefault);
@@ -120,7 +107,6 @@ namespace Database.Common
             WriteString(document, "ConnectionString", ConnectionString, root);
             WriteInt32(document, "Port", Port, root);
             WriteInt32(document, "WebInterfacePort", WebInterfacePort, root);
-            WriteInt32(document, "MaxChunkSize", MaxChunkSize, root);
             WriteInt32(document, "MaxChunkItemCount", MaxChunkItemCount, root);
             WriteInt32(document, "RedundantNodesPerLocation", RedundantNodesPerLocation, root);
             WriteEnum(document, "LogLevel", LogLevel, root);

@@ -171,10 +171,6 @@ namespace Database.Controller
                         {
                             SendMessage(new Message(message, new JoinFailure("Max chunk item counts do not match."), false));
                         }
-                        else if (joinSettings.MaxChunkSize != _settings.MaxChunkSize)
-                        {
-                            SendMessage(new Message(message, new JoinFailure("Max chunk sizes do not match."), false));
-                        }
                         else if (joinSettings.RedundantNodesPerLocation != _settings.RedundantNodesPerLocation)
                         {
                             SendMessage(new Message(message,
@@ -190,7 +186,7 @@ namespace Database.Controller
 
                             RenameConnection(message.Address, nodeDef);
                             Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
-                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false)
+                            Message response = new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), false)
                             {
                                 Address = nodeDef
                             };
@@ -222,7 +218,7 @@ namespace Database.Controller
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
                             RenameConnection(message.Address, nodeDef);
                             Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
-                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false)
+                            Message response = new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), false)
                             {
                                 Address = nodeDef
                             };
@@ -251,7 +247,15 @@ namespace Database.Controller
                             NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
                             RenameConnection(message.Address, nodeDef);
                             Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
-                            Message response = new Message(message, new JoinSuccess(Equals(Primary, Self)), false)
+
+                            var responseData = new Document();
+                            responseData["PrimaryController"] = new DocumentEntry("PrimaryController", DocumentEntryType.Boolean, Equals(Primary, Self));
+                            if (Equals(Primary, Self))
+                            {
+                                responseData["MaxChunkItemCount"] = new DocumentEntry("MaxChunkItemCount", DocumentEntryType.Integer, _settings.MaxChunkItemCount);
+                            }
+
+                            Message response = new Message(message, new JoinSuccess(responseData), false)
                             {
                                 Address = nodeDef
                             };
@@ -277,7 +281,7 @@ namespace Database.Controller
 
                     case NodeType.Console:
                         Connections[message.Address].ConnectionEstablished(message.Address, joinAttemptData.Type);
-                        SendMessage(new Message(message, new JoinSuccess(Equals(Primary, Self)), false));
+                        SendMessage(new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), false));
                         break;
 
                     case NodeType.Api:
@@ -288,7 +292,7 @@ namespace Database.Controller
                         else
                         {
                             Connections[message.Address].ConnectionEstablished(message.Address, joinAttemptData.Type);
-                            SendMessage(new Message(message, new JoinSuccess(Equals(Primary, Self)), false));
+                            SendMessage(new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), false));
 
                             SendQueryNodeConnectionMessage();
                         }
@@ -412,7 +416,7 @@ namespace Database.Controller
                 Logger.Log("Connected to controller " + target.ConnectionName, LogLevel.Info);
                 JoinSuccess success = (JoinSuccess)message.Response.Data;
                 Connections[target].ConnectionEstablished(target, NodeType.Controller);
-                if (success.PrimaryController)
+                if (success.Data["PrimaryController"].ValueAsBoolean)
                 {
                     Logger.Log("Setting the primary controller to " + target.ConnectionName, LogLevel.Info);
                     Primary = target;

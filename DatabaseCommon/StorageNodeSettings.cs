@@ -10,37 +10,37 @@ namespace Database.Common
         /// <summary>
         /// The default value indicating whether this node can become a primary storage node.
         /// </summary>
-        private const bool CanBecomePrimaryDefault = true;
+        public const bool CanBecomePrimaryDefault = true;
 
         /// <summary>
         /// The default connection string.
         /// </summary>
-        private const string ConnectionStringDefault = "";
+        public const string ConnectionStringDefault = "";
 
         /// <summary>
         /// The default location.
         /// </summary>
-        private const string LocationDefault = "";
+        public const string LocationDefault = "";
 
         /// <summary>
         /// The default log level.
         /// </summary>
-        private const LogLevel LogLevelDefault = LogLevel.Warning;
+        public const LogLevel LogLevelDefault = LogLevel.Warning;
 
         /// <summary>
         /// The default node name.
         /// </summary>
-        private const string NodeNameDefault = "localhost";
+        public const string NodeNameDefault = "localhost";
 
         /// <summary>
         /// The default port.
         /// </summary>
-        private const int PortDefault = 5100;
+        public const int PortDefault = 5100;
 
         /// <summary>
         /// The default weight.
         /// </summary>
-        private const int WeightDefault = 1;
+        public const int WeightDefault = 1;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="StorageNodeSettings"/> class.

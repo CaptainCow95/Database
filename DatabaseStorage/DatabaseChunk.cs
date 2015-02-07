@@ -17,14 +17,14 @@ namespace Database.Storage
         private readonly ChunkMarker _start;
 
         /// <summary>
+        /// The data contained by the chunk.
+        /// </summary>
+        private ConcurrentDictionary<ObjectId, Document> _data = new ConcurrentDictionary<ObjectId, Document>();
+
+        /// <summary>
         /// The end of the chunk.
         /// </summary>
         private ChunkMarker _end;
-
-        /// <summary>
-        /// The data contained by the chunk.
-        /// </summary>
-        private ConcurrentDictionary<ObjectId, Document> _newData = new ConcurrentDictionary<ObjectId, Document>();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DatabaseChunk"/> class.
@@ -47,7 +47,7 @@ namespace Database.Storage
         {
             _start = start;
             _end = end;
-            _newData = new ConcurrentDictionary<ObjectId, Document>(data);
+            _data = data;
         }
 
         /// <summary>
@@ -55,7 +55,7 @@ namespace Database.Storage
         /// </summary>
         public int Count
         {
-            get { return _newData.Count; }
+            get { return _data.Count; }
         }
 
         /// <summary>
@@ -75,21 +75,21 @@ namespace Database.Storage
         }
 
         /// <summary>
-        /// Combines this current chunk with the one passed in.
+        /// Merges this chunk with the one passed in.
         /// </summary>
-        /// <param name="c">The chunk to combine.</param>
+        /// <param name="c">The chunk to merge.</param>
         /// <remarks>Make sure the chunks are sequential and that the chunk passed in comes after the current chunk.</remarks>
-        public void Combine(DatabaseChunk c)
+        public void Merge(DatabaseChunk c)
         {
             if (!Equals(_end, c._start))
             {
-                throw new ArgumentException("The chunks are either not next to each other or you are trying to combine with the last chunk instead of the first.");
+                throw new ArgumentException("The chunks are either not next to each other or you are trying to merge with the last chunk instead of the first.");
             }
 
             // Copy the data over.
-            foreach (var item in c._newData)
+            foreach (var item in c._data)
             {
-                _newData.TryAdd(item.Key, item.Value);
+                _data.TryAdd(item.Key, item.Value);
             }
 
             _end = c._end;
@@ -102,7 +102,7 @@ namespace Database.Storage
         /// <returns>A list of the matching documents in the chunk.</returns>
         public List<Document> Query(List<QueryItem> queryItems)
         {
-            return _newData.Where(e => queryItems.All(query => query.Match(e.Value))).Select(e => e.Value).ToList();
+            return _data.Where(e => queryItems.All(query => query.Match(e.Value))).Select(e => e.Value).ToList();
         }
 
         /// <summary>
@@ -111,17 +111,13 @@ namespace Database.Storage
         /// <returns>The new chunk created from the split.</returns>
         public DatabaseChunk Split()
         {
-            lock (_newData)
-            {
-                var newData = new ConcurrentDictionary<ObjectId, Document>(_newData.Skip(_newData.Count / 2).ToDictionary(e => e.Key, e => e.Value));
-                _newData = new ConcurrentDictionary<ObjectId, Document>(_newData.Take(_newData.Count / 2));
+            var newData = new ConcurrentDictionary<ObjectId, Document>(_data.OrderBy(e => e.Key).Skip(_data.Count / 2).ToDictionary(e => e.Key, e => e.Value));
+            _data = new ConcurrentDictionary<ObjectId, Document>(_data.OrderBy(e => e.Key).Take(_data.Count / 2));
 
-                var oldEnd = _end;
-                _end = new ChunkMarker(newData.Keys.Min().ToString());
-                _end = new ChunkMarker(newData.First().Key.ToString());
+            var oldEnd = _end;
+            _end = new ChunkMarker(newData.Keys.Min().ToString());
 
-                return new DatabaseChunk(_end, oldEnd, newData);
-            }
+            return new DatabaseChunk(_end, oldEnd, newData);
         }
 
         /// <summary>
@@ -132,7 +128,7 @@ namespace Database.Storage
         /// <returns>A value indicating whether the add was successful or if the key already existed.</returns>
         public bool TryAdd(ObjectId id, Document document)
         {
-            return _newData.TryAdd(id, document);
+            return _data.TryAdd(id, document);
         }
 
         /// <summary>
@@ -143,7 +139,7 @@ namespace Database.Storage
         /// <returns>True if the get was successful, otherwise false.</returns>
         public bool TryGet(ObjectId id, out Document value)
         {
-            return _newData.TryGetValue(id, out value);
+            return _data.TryGetValue(id, out value);
         }
 
         /// <summary>
@@ -154,7 +150,7 @@ namespace Database.Storage
         /// <returns>True if the remove was successful, otherwise false.</returns>
         public bool TryRemove(ObjectId id, out Document removed)
         {
-            return _newData.TryRemove(id, out removed);
+            return _data.TryRemove(id, out removed);
         }
 
         /// <summary>
@@ -166,7 +162,7 @@ namespace Database.Storage
         /// <returns>True if the update was successful, otherwise false.</returns>
         public bool TryUpdate(ObjectId id, Document newValue, Document oldValue)
         {
-            return _newData.TryUpdate(id, newValue, oldValue);
+            return _data.TryUpdate(id, newValue, oldValue);
         }
     }
 }

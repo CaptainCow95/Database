@@ -1,4 +1,5 @@
-﻿using Database.Common.DataOperation;
+﻿using Database.Common;
+using Database.Common.DataOperation;
 using Database.Common.Messages;
 using System;
 using System.Collections.Generic;
@@ -14,6 +15,11 @@ namespace Database.Storage
     public class Database
     {
         /// <summary>
+        /// The number of seconds between maintenance run cycles.
+        /// </summary>
+        private const int MaintenanceRunTime = 10;
+
+        /// <summary>
         /// The chunks contained by this database.
         /// </summary>
         private readonly List<DatabaseChunk> _chunks = new List<DatabaseChunk>();
@@ -22,6 +28,35 @@ namespace Database.Storage
         /// The lock to use when accessing the chunks list.
         /// </summary>
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
+
+        /// <summary>
+        /// A value indicating whether to check for a merge during the next maintenance run.
+        /// </summary>
+        private volatile bool _checkForMerge = false;
+
+        /// <summary>
+        /// A value indicating whether to check for a split during the next maintenance run.
+        /// </summary>
+        private volatile bool _checkForSplit = false;
+
+        /// <summary>
+        /// The maximum number of items per chunk before a split occurs.
+        /// </summary>
+        private int _maxChunkItemCount = ControllerNodeSettings.MaxChunkItemCountDefault;
+
+        /// <summary>
+        /// A value indicating whether the maintenance thread is running.
+        /// </summary>
+        private bool _running = true;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Database"/> class.
+        /// </summary>
+        public Database()
+        {
+            var chunkMaintenanceThread = new Thread(RunMaintenanceThread);
+            chunkMaintenanceThread.Start();
+        }
 
         /// <summary>
         /// Processes an operation.
@@ -102,6 +137,23 @@ namespace Database.Storage
         }
 
         /// <summary>
+        /// Sets the maximum number of items per chunk before a split occurs.
+        /// </summary>
+        /// <param name="maxChunkItemCount">The maximum number of items per chunk before a split occurs.</param>
+        public void SetMaxChunkItemCount(int maxChunkItemCount)
+        {
+            _maxChunkItemCount = maxChunkItemCount;
+        }
+
+        /// <summary>
+        /// Shuts down the database.
+        /// </summary>
+        public void Shutdown()
+        {
+            _running = false;
+        }
+
+        /// <summary>
         /// Builds up the query items for querying the document.
         /// </summary>
         /// <param name="doc">The document to build the queries from.</param>
@@ -141,7 +193,13 @@ namespace Database.Storage
 
             _lock.ExitReadLock();
 
-            return success ? new DataOperationResult(op.Document) : new DataOperationResult(ErrorCodes.InvalidId, "A key with the specified ObjectId already exists.");
+            if (!success)
+            {
+                return new DataOperationResult(ErrorCodes.InvalidId, "A key with the specified ObjectId already exists.");
+            }
+
+            _checkForSplit = true;
+            return new DataOperationResult(op.Document);
         }
 
         /// <summary>
@@ -205,9 +263,14 @@ namespace Database.Storage
             _lock.EnterReadLock();
 
             Document removed;
-            GetChunk(op.DocumentId).TryRemove(op.DocumentId, out removed);
+            bool success = GetChunk(op.DocumentId).TryRemove(op.DocumentId, out removed);
 
             _lock.ExitReadLock();
+
+            if (success)
+            {
+                _checkForMerge = true;
+            }
 
             return new DataOperationResult(removed);
         }
@@ -227,8 +290,6 @@ namespace Database.Storage
 
             _lock.EnterReadLock();
 
-            var success = false;
-            Document toUpdate = null;
             var chunk = GetChunk(op.DocumentId);
 
             Document value;
@@ -240,14 +301,14 @@ namespace Database.Storage
                 return new DataOperationResult(ErrorCodes.InvalidId, "The specified document was not found.");
             }
 
-            toUpdate = new Document(value);
+            var toUpdate = new Document(value);
             toUpdate.Merge(op.UpdateFields);
             foreach (var field in op.RemoveFields)
             {
                 toUpdate.RemoveField(field);
             }
 
-            success = chunk.TryUpdate(op.DocumentId, toUpdate, value);
+            var success = chunk.TryUpdate(op.DocumentId, toUpdate, value);
 
             _lock.ExitReadLock();
 
@@ -256,7 +317,68 @@ namespace Database.Storage
                 return new DataOperationResult(ErrorCodes.InvalidId, "The specified document was not found.");
             }
 
+            _checkForSplit = true;
+            _checkForMerge = true;
             return new DataOperationResult(toUpdate);
+        }
+
+        /// <summary>
+        /// Runs the maintenance thread that checks if a split or merge is needed.
+        /// </summary>
+        private void RunMaintenanceThread()
+        {
+            while (_running)
+            {
+                if (_checkForMerge)
+                {
+                    _checkForMerge = false;
+
+                    _lock.EnterUpgradeableReadLock();
+
+                    for (int i = 0; i < _chunks.Count - 1; ++i)
+                    {
+                        if (_chunks[i].Count + _chunks[i + 1].Count < _maxChunkItemCount / 2)
+                        {
+                            _lock.EnterWriteLock();
+
+                            _chunks[i].Merge(_chunks[i + 1]);
+                            _chunks.RemoveAt(i + 1);
+                            --i;
+
+                            _lock.ExitWriteLock();
+                        }
+                    }
+
+                    _lock.ExitUpgradeableReadLock();
+                }
+
+                if (_checkForSplit)
+                {
+                    _checkForSplit = false;
+
+                    _lock.EnterUpgradeableReadLock();
+
+                    for (int i = 0; i < _chunks.Count; ++i)
+                    {
+                        if (_chunks[i].Count > _maxChunkItemCount)
+                        {
+                            _lock.EnterWriteLock();
+
+                            _chunks.Insert(i + 1, _chunks[i].Split());
+                            --i;
+
+                            _lock.ExitWriteLock();
+                        }
+                    }
+
+                    _lock.ExitUpgradeableReadLock();
+                }
+
+                for (int i = 0; i < MaintenanceRunTime && _running; ++i)
+                {
+                    Thread.Sleep(1000);
+                }
+            }
         }
     }
 }

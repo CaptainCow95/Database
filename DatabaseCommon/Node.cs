@@ -422,7 +422,11 @@ namespace Database.Common
                                 }
                             }
 
-                            messagesToRemove.ForEach(e => _waitingForResponses.Remove(e));
+                            messagesToRemove.ForEach(e =>
+                            {
+                                _waitingForResponses[e].Item1.Status = MessageStatus.ResponseFailure;
+                                _waitingForResponses.Remove(e);
+                            });
                         }
 
                         _threadPool.QueueWorkItem(ConnectionLostHandler, connection);
@@ -457,7 +461,10 @@ namespace Database.Common
 
                 foreach (var connection in _connections)
                 {
-                    SendMessage(new Message(connection.Key, new Heartbeat(), false));
+                    if (connection.Value.Status == ConnectionStatus.Connected)
+                    {
+                        SendMessage(new Message(connection.Key, new Heartbeat(), false));
+                    }
                 }
 
                 _connectionsLock.ExitReadLock();

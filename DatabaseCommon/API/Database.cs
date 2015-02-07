@@ -162,7 +162,7 @@ namespace Database.Common.API
 
                         JoinSuccess successData = (JoinSuccess)message.Response.Data;
                         Connections[def].ConnectionEstablished(message.Address, NodeType.Controller);
-                        if (successData.PrimaryController)
+                        if (successData.Data["PrimaryController"].ValueAsBoolean)
                         {
                             Primary = message.Address;
                         }

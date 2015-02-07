@@ -75,8 +75,8 @@ namespace Database.Common.DataOperation
                 return false;
             }
 
-            bool afterA = a._type == ChunkMarkerType.Start || string.Compare(a._value, value, StringComparison.Ordinal) >= 0;
-            bool beforeB = a._type == ChunkMarkerType.End || string.Compare(value, b._value, StringComparison.Ordinal) > 0;
+            bool afterA = a._type == ChunkMarkerType.Start || string.Compare(a._value, value, StringComparison.Ordinal) <= 0;
+            bool beforeB = b._type == ChunkMarkerType.End || string.Compare(value, b._value, StringComparison.Ordinal) < 0;
 
             return afterA && beforeB;
         }
