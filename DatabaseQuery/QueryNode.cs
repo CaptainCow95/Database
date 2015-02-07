@@ -192,8 +192,8 @@ namespace Database.Query
                 }
 
                 DataOperationResult operationResult = ProcessDataOperation(dataOperation);
-
-                SendMessage(new Message(message, operationResult, false));
+                Document modifiedDocument = new Document(operationResult.Result);
+                SendMessage(new Message(message, new DataOperationResult(modifiedDocument["0"].ValueAsDocument, false), false));
             }
             else if (message.Data is ChunkListUpdate)
             {
@@ -300,9 +300,9 @@ namespace Database.Query
                 if (result.Success)
                 {
                     Document doc = new Document(((DataOperationResult)result.Response.Data).Result);
-                    if (doc["success"].ValueAsBoolean)
+                    if (doc["0"].ValueAsDocument["success"].ValueAsBoolean)
                     {
-                        Document results = doc["result"].ValueAsDocument;
+                        Document results = doc["0"].ValueAsDocument["result"].ValueAsDocument;
                         for (int j = 0; j < results["count"].ValueAsInteger; ++j)
                         {
                             workingDocument[i.ToString()] = new DocumentEntry(i.ToString(), results[j.ToString()].ValueType, results[j.ToString()].Value);
@@ -326,7 +326,7 @@ namespace Database.Query
             }
 
             workingDocument["count"] = new DocumentEntry("count", DocumentEntryType.Integer, i);
-            return new DataOperationResult(workingDocument);
+            return new DataOperationResult(new Document("{\"0\":{\"success\":true,\"result\":" + workingDocument.ToJson() + "}}"), false);
         }
 
         /// <summary>

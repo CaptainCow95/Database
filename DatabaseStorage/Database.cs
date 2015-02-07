@@ -113,7 +113,7 @@ namespace Database.Storage
 
             returnDocument["count"] = new DocumentEntry("count", DocumentEntryType.Integer, doc["count"].ValueAsInteger);
 
-            return new DataOperationResult(returnDocument);
+            return new DataOperationResult(returnDocument, false);
         }
 
         /// <summary>

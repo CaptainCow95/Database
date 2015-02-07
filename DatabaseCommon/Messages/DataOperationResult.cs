@@ -17,9 +17,17 @@ namespace Database.Common.Messages
         /// Initializes a new instance of the <see cref="DataOperationResult"/> class.
         /// </summary>
         /// <param name="doc">The result of the operation.</param>
-        public DataOperationResult(Document doc)
+        /// <param name="addSuccess">A value indicating whether to add the success and result fields.</param>
+        public DataOperationResult(Document doc, bool addSuccess = true)
         {
-            _result = "{\"success\":true,\"result\":" + doc.ToJson() + "}";
+            if (addSuccess)
+            {
+                _result = "{\"success\":true,\"result\":" + doc.ToJson() + "}";
+            }
+            else
+            {
+                _result = doc.ToJson();
+            }
         }
 
         /// <summary>
