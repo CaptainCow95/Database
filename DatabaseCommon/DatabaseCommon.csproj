@@ -54,6 +54,7 @@
     <Compile Include="ConnectionStatus.cs" />
     <Compile Include="ControllerNodeSettings.cs" />
     <Compile Include="DataOperation\AddOperation.cs" />
+    <Compile Include="DataOperation\ChunkDefinition.cs" />
     <Compile Include="DataOperation\ChunkMarker.cs" />
     <Compile Include="DataOperation\ChunkMarkerType.cs" />
     <Compile Include="DataOperation\DataTypeException.cs" />

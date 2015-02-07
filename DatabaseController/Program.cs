@@ -44,9 +44,9 @@ namespace Database.Controller
                         for (int i = 0; i < chunkList.Count; ++i)
                         {
                             Document chunk = new Document();
-                            chunk["start"] = new DocumentEntry("start", DocumentEntryType.String, chunkList[i].Item1.ToString());
-                            chunk["end"] = new DocumentEntry("end", DocumentEntryType.String, chunkList[i].Item2.ToString());
-                            chunk["node"] = new DocumentEntry("node", DocumentEntryType.String, chunkList[i].Item3.ConnectionName);
+                            chunk["start"] = new DocumentEntry("start", DocumentEntryType.String, chunkList[i].Start.ToString());
+                            chunk["end"] = new DocumentEntry("end", DocumentEntryType.String, chunkList[i].End.ToString());
+                            chunk["node"] = new DocumentEntry("node", DocumentEntryType.String, chunkList[i].Node.ConnectionName);
                             chunks[i.ToString()] = new DocumentEntry(i.ToString(), DocumentEntryType.Document, chunk);
                         }
 
@@ -111,13 +111,13 @@ namespace Database.Controller
 
                         var chunks = _node.GetChunkList();
 
-                        foreach (var item in chunks.OrderBy(e => e.Item1))
+                        foreach (var item in chunks.OrderBy(e => e.Start))
                         {
-                            page.Append(item.Item1);
+                            page.Append(item.Start);
                             page.Append(" - ");
-                            page.Append(item.Item2);
+                            page.Append(item.End);
                             page.Append(" located on ");
-                            page.Append(item.Item3.ConnectionName);
+                            page.Append(item.Node.ConnectionName);
                             page.Append("<br/>");
                         }
 

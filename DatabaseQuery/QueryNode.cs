@@ -16,7 +16,7 @@ namespace Database.Query
         /// <summary>
         /// The list of chunks known by the database.
         /// </summary>
-        private List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>> _chunkList = new List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>>();
+        private List<ChunkDefinition> _chunkList = new List<ChunkDefinition>();
 
         /// <summary>
         /// The lock to use when accessing the chunk list.
@@ -223,10 +223,10 @@ namespace Database.Query
             }
 
             _chunkListLock.EnterReadLock();
-            var chunk = _chunkList.SingleOrDefault(e => ChunkMarker.IsBetween(e.Item1, e.Item2, addOperation.Id.ToString()));
+            var chunk = _chunkList.SingleOrDefault(e => ChunkMarker.IsBetween(e.Start, e.End, addOperation.Id.ToString()));
             _chunkListLock.ExitReadLock();
 
-            NodeDefinition node = chunk == null ? null : chunk.Item3;
+            NodeDefinition node = chunk == null ? null : chunk.Node;
 
             if (node == null)
             {
@@ -343,10 +343,10 @@ namespace Database.Query
             }
 
             _chunkListLock.EnterReadLock();
-            var chunk = _chunkList.SingleOrDefault(e => ChunkMarker.IsBetween(e.Item1, e.Item2, removeOperation.DocumentId.ToString()));
+            var chunk = _chunkList.SingleOrDefault(e => ChunkMarker.IsBetween(e.Start, e.End, removeOperation.DocumentId.ToString()));
             _chunkListLock.ExitReadLock();
 
-            NodeDefinition node = chunk == null ? null : chunk.Item3;
+            NodeDefinition node = chunk == null ? null : chunk.Node;
 
             if (node == null)
             {
@@ -378,10 +378,10 @@ namespace Database.Query
             }
 
             _chunkListLock.EnterReadLock();
-            var chunk = _chunkList.SingleOrDefault(e => ChunkMarker.IsBetween(e.Item1, e.Item2, updateOperation.DocumentId.ToString()));
+            var chunk = _chunkList.SingleOrDefault(e => ChunkMarker.IsBetween(e.Start, e.End, updateOperation.DocumentId.ToString()));
             _chunkListLock.ExitReadLock();
 
-            NodeDefinition node = chunk == null ? null : chunk.Item3;
+            NodeDefinition node = chunk == null ? null : chunk.Node;
 
             if (node == null)
             {

@@ -16,7 +16,7 @@ namespace Database.Controller
         /// <summary>
         /// The list of where the various database chunks are located.
         /// </summary>
-        private List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>> _chunkList = new List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>>();
+        private List<ChunkDefinition> _chunkList = new List<ChunkDefinition>();
 
         /// <summary>
         /// A list of the controller nodes contained in the connection string.
@@ -63,7 +63,7 @@ namespace Database.Controller
         /// Gets a list of the current database chunks.
         /// </summary>
         /// <returns>The list of the current database chunks.</returns>
-        public IReadOnlyCollection<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>> GetChunkList()
+        public IReadOnlyCollection<ChunkDefinition> GetChunkList()
         {
             lock (_chunkList)
             {
@@ -148,7 +148,7 @@ namespace Database.Controller
             {
                 lock (_chunkList)
                 {
-                    _chunkList.RemoveAll(e => Equals(e.Item3, node));
+                    _chunkList.RemoveAll(e => Equals(e.Node, node));
                 }
             }
         }
@@ -254,9 +254,9 @@ namespace Database.Controller
                 ChunkSplit splitData = (ChunkSplit)message.Data;
                 lock (_chunkList)
                 {
-                    _chunkList.Remove(_chunkList.Find(e => Equals(e.Item1, splitData.Start1)));
-                    _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(splitData.Start1, splitData.End1, message.Address));
-                    _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(splitData.Start2, splitData.End2, message.Address));
+                    _chunkList.Remove(_chunkList.Find(e => Equals(e.Start, splitData.Start1)));
+                    _chunkList.Add(new ChunkDefinition(splitData.Start1, splitData.End1, message.Address));
+                    _chunkList.Add(new ChunkDefinition(splitData.Start2, splitData.End2, message.Address));
                 }
 
                 SendMessage(new Message(message, new Acknowledgement(), false));
@@ -267,9 +267,9 @@ namespace Database.Controller
                 ChunkMerge mergeData = (ChunkMerge)message.Data;
                 lock (_chunkList)
                 {
-                    _chunkList.Remove(_chunkList.Find(e => Equals(e.Item1, mergeData.Start)));
-                    _chunkList.Remove(_chunkList.Find(e => Equals(e.Item2, mergeData.End)));
-                    _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(mergeData.Start, mergeData.End, message.Address));
+                    _chunkList.Remove(_chunkList.Find(e => Equals(e.Start, mergeData.Start)));
+                    _chunkList.Remove(_chunkList.Find(e => Equals(e.End, mergeData.End)));
+                    _chunkList.Add(new ChunkDefinition(mergeData.Start, mergeData.End, message.Address));
                 }
 
                 SendMessage(new Message(message, new Acknowledgement(), false));
@@ -448,7 +448,7 @@ namespace Database.Controller
                             {
                                 if (Equals(Primary, Self) && _chunkList.Count == 0)
                                 {
-                                    _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(new ChunkMarker(ChunkMarkerType.Start), new ChunkMarker(ChunkMarkerType.End), nodeDef));
+                                    _chunkList.Add(new ChunkDefinition(new ChunkMarker(ChunkMarkerType.Start), new ChunkMarker(ChunkMarkerType.End), nodeDef));
                                     updatedChunkList = true;
                                 }
                             }

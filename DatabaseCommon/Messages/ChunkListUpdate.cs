@@ -1,5 +1,4 @@
 ﻿using Database.Common.DataOperation;
-using System;
 using System.Collections.Generic;
 
 namespace Database.Common.Messages
@@ -18,16 +17,16 @@ namespace Database.Common.Messages
         /// Initializes a new instance of the <see cref="ChunkListUpdate"/> class.
         /// </summary>
         /// <param name="chunkList">The chunk list to send.</param>
-        public ChunkListUpdate(List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>> chunkList)
+        public ChunkListUpdate(List<ChunkDefinition> chunkList)
         {
             _chunkList = new Document();
             for (int i = 0; i < chunkList.Count; ++i)
             {
                 List<DocumentEntry> arrayEntry = new List<DocumentEntry>()
                 {
-                    new DocumentEntry(string.Empty, DocumentEntryType.String, chunkList[i].Item1.ToString()),
-                    new DocumentEntry(string.Empty, DocumentEntryType.String, chunkList[i].Item2.ToString()),
-                    new DocumentEntry(string.Empty, DocumentEntryType.String, chunkList[i].Item3.ConnectionName)
+                    new DocumentEntry(string.Empty, DocumentEntryType.String, chunkList[i].Start.ToString()),
+                    new DocumentEntry(string.Empty, DocumentEntryType.String, chunkList[i].End.ToString()),
+                    new DocumentEntry(string.Empty, DocumentEntryType.String, chunkList[i].Node.ConnectionName)
                 };
 
                 _chunkList[i.ToString()] = new DocumentEntry(i.ToString(), DocumentEntryType.Array, arrayEntry);
@@ -47,7 +46,7 @@ namespace Database.Common.Messages
         /// <summary>
         /// Gets the list of chunks.
         /// </summary>
-        public List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>> ChunkList
+        public List<ChunkDefinition> ChunkList
         {
             get { return GetList(); }
         }
@@ -68,16 +67,16 @@ namespace Database.Common.Messages
         /// Gets a list of the chunks from the internal document.
         /// </summary>
         /// <returns>A list of the chunks from the internal document.</returns>
-        private List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>> GetList()
+        private List<ChunkDefinition> GetList()
         {
-            List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>> returnValue = new List<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>>();
+            List<ChunkDefinition> returnValue = new List<ChunkDefinition>();
             for (int i = 0; i < _chunkList.Count; ++i)
             {
                 var array = _chunkList[i.ToString()].ValueAsArray;
                 var start = ChunkMarker.ConvertFromString(array[0].ValueAsString);
                 var end = ChunkMarker.ConvertFromString(array[1].ValueAsString);
                 var node = new NodeDefinition(array[2].ValueAsString.Split(':')[0], int.Parse(array[2].ValueAsString.Split(':')[1]));
-                returnValue.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(start, end, node));
+                returnValue.Add(new ChunkDefinition(start, end, node));
             }
 
             return returnValue;
