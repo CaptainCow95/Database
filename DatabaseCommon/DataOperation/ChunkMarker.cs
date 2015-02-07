@@ -5,7 +5,7 @@ namespace Database.Common.DataOperation
     /// <summary>
     /// Represents a marker between chunks in the database.
     /// </summary>
-    public class ChunkMarker
+    public class ChunkMarker : IComparable<ChunkMarker>
     {
         /// <summary>
         /// The type of the marker.
@@ -58,7 +58,7 @@ namespace Database.Common.DataOperation
                 return new ChunkMarker(ChunkMarkerType.End);
             }
 
-            return new ChunkMarker(s.Substring(5));
+            return new ChunkMarker(s);
         }
 
         /// <summary>
@@ -81,11 +81,62 @@ namespace Database.Common.DataOperation
             return afterA && beforeB;
         }
 
-        /// <summary>
-        /// Converts a <see cref="ChunkMarker"/> to a string for easy network transfer.
-        /// </summary>
-        /// <returns>The current value as a string.</returns>
-        public string ConvertToString()
+        /// <inheritdoc />
+        public int CompareTo(ChunkMarker other)
+        {
+            if (other == null)
+            {
+                return -1;
+            }
+
+            if (_type == ChunkMarkerType.Start)
+            {
+                return other._type == ChunkMarkerType.Start ? 0 : -1;
+            }
+
+            if (_type == ChunkMarkerType.End)
+            {
+                return other._type == ChunkMarkerType.End ? 0 : 1;
+            }
+
+            if (other._type == ChunkMarkerType.Start)
+            {
+                return 1;
+            }
+
+            if (other._type == ChunkMarkerType.End)
+            {
+                return -1;
+            }
+
+            return string.Compare(_value, other._value, StringComparison.Ordinal);
+        }
+
+        /// <inheritdoc />
+        public override bool Equals(object obj)
+        {
+            ChunkMarker marker = obj as ChunkMarker;
+            if (marker == null)
+            {
+                return false;
+            }
+
+            if (_type == ChunkMarkerType.Value && marker._type == ChunkMarkerType.Value)
+            {
+                return _value == marker._value;
+            }
+
+            return _type == marker._type;
+        }
+
+        /// <inheritdoc />
+        public override int GetHashCode()
+        {
+            return ToString().GetHashCode();
+        }
+
+        /// <inheritdoc />
+        public override string ToString()
         {
             switch (_type)
             {
@@ -96,7 +147,7 @@ namespace Database.Common.DataOperation
                     return "end";
 
                 default:
-                    return "value" + _value;
+                    return _value;
             }
         }
     }

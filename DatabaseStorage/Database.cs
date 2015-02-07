@@ -1,7 +1,6 @@
 ﻿using Database.Common;
 using Database.Common.DataOperation;
 using Database.Common.Messages;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -45,6 +44,11 @@ namespace Database.Storage
         private int _maxChunkItemCount = ControllerNodeSettings.MaxChunkItemCountDefault;
 
         /// <summary>
+        /// The storage node to send messages to.
+        /// </summary>
+        private StorageNode _node;
+
+        /// <summary>
         /// A value indicating whether the maintenance thread is running.
         /// </summary>
         private bool _running = true;
@@ -52,10 +56,27 @@ namespace Database.Storage
         /// <summary>
         /// Initializes a new instance of the <see cref="Database"/> class.
         /// </summary>
-        public Database()
+        /// <param name="node">The storage node to send messages to.</param>
+        public Database(StorageNode node)
         {
+            _node = node;
             var chunkMaintenanceThread = new Thread(RunMaintenanceThread);
             chunkMaintenanceThread.Start();
+        }
+
+        /// <summary>
+        /// Creates a database is it doesn't already exist.
+        /// </summary>
+        public void Create()
+        {
+            _lock.EnterWriteLock();
+
+            if (_chunks.Count == 0)
+            {
+                _chunks.Add(new DatabaseChunk(new ChunkMarker(ChunkMarkerType.Start), new ChunkMarker(ChunkMarkerType.End)));
+            }
+
+            _lock.ExitWriteLock();
         }
 
         /// <summary>
@@ -71,69 +92,28 @@ namespace Database.Storage
                 return new DataOperationResult(ErrorCodes.InvalidDocument, "The document is invalid.");
             }
 
-            if (doc.Count != 1)
+            if (!doc.ContainsKey("count") || doc["count"].ValueType != DocumentEntryType.Integer)
             {
-                return new DataOperationResult(ErrorCodes.MultipleOperations, "Must have one and only one operation at a time.");
+                return new DataOperationResult(ErrorCodes.InvalidDocument, "No count field or it is not an integer.");
             }
 
-            var item = doc.First();
-            switch (item.Key)
+            for (int i = 0; i < doc["count"].ValueAsInteger; ++i)
             {
-                case "add":
-                    if (doc.CheckForSubkeys())
-                    {
-                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the add operation.");
-                    }
-
-                    return ProcessAddOperation(item.Value.ValueAsDocument);
-
-                case "update":
-                    if (doc.CheckForSubkeys())
-                    {
-                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the update operation.");
-                    }
-
-                    return ProcessUpdateOperation(item.Value.ValueAsDocument);
-
-                case "remove":
-                    if (doc.CheckForSubkeys())
-                    {
-                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the remove operation.");
-                    }
-
-                    return ProcessRemoveOperation(item.Value.ValueAsDocument);
-
-                case "query":
-                    return ProcessQueryOperation(item.Value.ValueAsDocument);
-
-                default:
-                    return new DataOperationResult(ErrorCodes.InvalidDocument, "Invalid operation specified.");
-            }
-        }
-
-        /// <summary>
-        /// Resets the chunk list if any changes are needed.
-        /// </summary>
-        /// <param name="chunks">The new chunk list.</param>
-        public void ResetChunkList(List<Tuple<ChunkMarker, ChunkMarker>> chunks)
-        {
-            _lock.EnterWriteLock();
-
-            foreach (var item in chunks)
-            {
-                if (!_chunks.Any(e => Equals(e.Start, item.Item1) && Equals(e.End, item.Item2)))
+                if (!doc.ContainsKey(i.ToString()) || doc[i.ToString()].ValueType != DocumentEntryType.Document)
                 {
-                    _chunks.Add(new DatabaseChunk(item.Item1, item.Item2));
+                    return new DataOperationResult(ErrorCodes.InvalidDocument, "No operation or invalid operation defined for the field number " + i + ".");
                 }
             }
 
-            var chunksToRemove = _chunks.Where(item => !chunks.Any(e => Equals(e.Item1, item.Start) && Equals(e.Item2, item.End))).ToList();
-            foreach (var item in chunksToRemove)
+            Document returnDocument = new Document();
+            for (int i = 0; i < doc["count"].ValueAsInteger; ++i)
             {
-                _chunks.Remove(item);
+                returnDocument[i.ToString()] = new DocumentEntry(i.ToString(), DocumentEntryType.Document, new Document(ProcessSingleOperation(doc[i.ToString()].ValueAsDocument).Result));
             }
 
-            _lock.ExitWriteLock();
+            returnDocument["count"] = new DocumentEntry("count", DocumentEntryType.Integer, doc["count"].ValueAsInteger);
+
+            return new DataOperationResult(returnDocument);
         }
 
         /// <summary>
@@ -276,6 +256,53 @@ namespace Database.Storage
         }
 
         /// <summary>
+        /// Processes a single operation.
+        /// </summary>
+        /// <param name="doc">The operation to process.</param>
+        /// <returns>The result of the operation.</returns>
+        private DataOperationResult ProcessSingleOperation(Document doc)
+        {
+            if (doc.Count != 1)
+            {
+                return new DataOperationResult(ErrorCodes.InvalidDocument, "Multiple entries in the operation.");
+            }
+
+            var item = doc.First();
+            switch (item.Key)
+            {
+                case "add":
+                    if (doc.CheckForSubkeys())
+                    {
+                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the add operation.");
+                    }
+
+                    return ProcessAddOperation(item.Value.ValueAsDocument);
+
+                case "update":
+                    if (doc.CheckForSubkeys())
+                    {
+                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the update operation.");
+                    }
+
+                    return ProcessUpdateOperation(item.Value.ValueAsDocument);
+
+                case "remove":
+                    if (doc.CheckForSubkeys())
+                    {
+                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the remove operation.");
+                    }
+
+                    return ProcessRemoveOperation(item.Value.ValueAsDocument);
+
+                case "query":
+                    return ProcessQueryOperation(item.Value.ValueAsDocument);
+
+                default:
+                    return new DataOperationResult(ErrorCodes.InvalidDocument, "Invalid operation specified.");
+            }
+        }
+
+        /// <summary>
         /// Processes an update operation.
         /// </summary>
         /// <param name="doc">The document representing the operation.</param>
@@ -329,6 +356,7 @@ namespace Database.Storage
         {
             while (_running)
             {
+                BaseMessageData message = null;
                 if (_checkForMerge)
                 {
                     _checkForMerge = false;
@@ -339,20 +367,23 @@ namespace Database.Storage
                     {
                         if (_chunks[i].Count + _chunks[i + 1].Count < _maxChunkItemCount / 2)
                         {
+                            _checkForMerge = true;
                             _lock.EnterWriteLock();
 
+                            // Merging two chunks, do the merge and then alert the primary controller before doing anything else.
                             _chunks[i].Merge(_chunks[i + 1]);
                             _chunks.RemoveAt(i + 1);
-                            --i;
+                            message = new ChunkMerge(_chunks[i].Start, _chunks[i].End);
 
                             _lock.ExitWriteLock();
+                            break;
                         }
                     }
 
                     _lock.ExitUpgradeableReadLock();
                 }
 
-                if (_checkForSplit)
+                if (_checkForSplit && message == null)
                 {
                     _checkForSplit = false;
 
@@ -362,21 +393,37 @@ namespace Database.Storage
                     {
                         if (_chunks[i].Count > _maxChunkItemCount)
                         {
+                            _checkForSplit = true;
                             _lock.EnterWriteLock();
 
+                            // Spliting a chunk, do the split and then alert the primary controller before doing anything else.
                             _chunks.Insert(i + 1, _chunks[i].Split());
-                            --i;
+                            message = new ChunkSplit(_chunks[i].Start, _chunks[i].End, _chunks[i + 1].Start, _chunks[i + 1].End);
 
                             _lock.ExitWriteLock();
+                            break;
                         }
                     }
 
                     _lock.ExitUpgradeableReadLock();
                 }
 
-                for (int i = 0; i < MaintenanceRunTime && _running; ++i)
+                if (message != null)
                 {
-                    Thread.Sleep(1000);
+                    if (_node.Primary != null)
+                    {
+                        Message sentMessage = new Message(_node.Primary, message, true);
+                        _node.SendDatabaseMessage(sentMessage);
+                        sentMessage.BlockUntilDone();
+                    }
+                }
+                else
+                {
+                    // No split or merge occurred, so sleep until the next run.
+                    for (int i = 0; i < MaintenanceRunTime && _running; ++i)
+                    {
+                        Thread.Sleep(1000);
+                    }
                 }
             }
         }

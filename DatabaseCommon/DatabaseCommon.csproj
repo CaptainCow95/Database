@@ -69,6 +69,10 @@
     <Compile Include="DataOperation\UpdateOperation.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="LogLevel.cs" />
+    <Compile Include="Messages\Acknowledgement.cs" />
+    <Compile Include="Messages\DatabaseCreate.cs" />
+    <Compile Include="Messages\ChunkMerge.cs" />
+    <Compile Include="Messages\ChunkSplit.cs" />
     <Compile Include="Messages\ChunkListUpdate.cs" />
     <Compile Include="Messages\DataOperation.cs" />
     <Compile Include="Messages\DataOperationResult.cs" />

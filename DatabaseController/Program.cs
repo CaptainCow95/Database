@@ -1,6 +1,6 @@
 ﻿using Database.Common;
+using Database.Common.DataOperation;
 using System;
-using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
@@ -21,88 +21,121 @@ namespace Database.Controller
         /// <summary>
         /// Creates the main page.
         /// </summary>
+        /// <param name="json">Whether to create a webpage or just plain JSON.</param>
         /// <returns>The html of the main page.</returns>
-        private static string CreateMainPage()
+        private static string CreateMainPage(bool json)
         {
-            if (_node != null)
+            try
             {
-                var list = _node.GetConnectedNodes();
-                var controllers = new List<NodeDefinition>();
-                var storage = new List<NodeDefinition>();
-                var query = new List<NodeDefinition>();
-                var console = new List<NodeDefinition>();
-                var api = new List<NodeDefinition>();
-
-                var self = _node.Self;
-                if (_node.Self != null)
+                if (_node != null)
                 {
-                    controllers.Add(self);
-                }
-
-                foreach (var item in list)
-                {
-                    switch (item.Item2)
+                    if (json)
                     {
-                        case NodeType.Controller:
-                            controllers.Add(item.Item1);
-                            break;
+                        var list =
+                            _node.GetConnectedNodes()
+                                .Concat(new[] { new Tuple<NodeDefinition, NodeType>(_node.Self, NodeType.Controller) })
+                                .OrderBy(e => e.Item1.ConnectionName);
+                        Document nodes = new Document();
+                        nodes["controllers"] = new DocumentEntry("controller", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Controller).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
+                        nodes["storage"] = new DocumentEntry("storage", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Storage).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
+                        nodes["query"] = new DocumentEntry("query", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Query).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
+                        nodes["console"] = new DocumentEntry("console", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Console).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
+                        nodes["api"] = new DocumentEntry("api", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Api).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
 
-                        case NodeType.Storage:
-                            storage.Add(item.Item1);
-                            break;
+                        Document chunks = new Document();
+                        var chunkList = _node.GetChunkList().ToList();
+                        for (int i = 0; i < chunkList.Count; ++i)
+                        {
+                            Document chunk = new Document();
+                            chunk["start"] = new DocumentEntry("start", DocumentEntryType.String, chunkList[i].Item1.ToString());
+                            chunk["end"] = new DocumentEntry("end", DocumentEntryType.String, chunkList[i].Item2.ToString());
+                            chunk["node"] = new DocumentEntry("node", DocumentEntryType.String, chunkList[i].Item3.ConnectionName);
+                            chunks[i.ToString()] = new DocumentEntry(i.ToString(), DocumentEntryType.Document, chunk);
+                        }
 
-                        case NodeType.Query:
-                            query.Add(item.Item1);
-                            break;
+                        chunks["count"] = new DocumentEntry("count", DocumentEntryType.Integer, chunkList.Count);
 
-                        case NodeType.Console:
-                            console.Add(item.Item1);
-                            break;
+                        Document document = new Document();
+                        document["nodes"] = new DocumentEntry("nodes", DocumentEntryType.Document, nodes);
+                        document["chunks"] = new DocumentEntry("chunks", DocumentEntryType.Document, chunks);
+                        return document.ToJson();
+                    }
+                    else
+                    {
+                        var list =
+                            _node.GetConnectedNodes()
+                                .Concat(new[] { new Tuple<NodeDefinition, NodeType>(_node.Self, NodeType.Controller) })
+                                .OrderBy(e => e.Item1.ConnectionName);
 
-                        case NodeType.Api:
-                            api.Add(item.Item1);
-                            break;
+                        StringBuilder page = new StringBuilder();
+                        page.Append("<html><body><b>Controller:</b><br /><ul>");
+                        foreach (
+                            var item in
+                                list.Where(e => e.Item2 == NodeType.Controller)
+                                    .Select(e => e.Item1.ConnectionName))
+                        {
+                            page.Append("<li>" + item);
+                            if (Equals(item, _node.Primary.ConnectionName))
+                            {
+                                page.Append(" <b>(Primary)</b>");
+                            }
+
+                            page.Append("</li>");
+                        }
+
+                        page.Append("</ul><b>Storage:</b><br /><ul>");
+                        list.Where(e => e.Item2 == NodeType.Storage)
+                            .Select(e => e.Item1.ConnectionName)
+                            .ToList()
+                            .ForEach(e => page.Append("<li>" + e + "</li>"));
+                        page.Append("</ul><b>Query:</b><br /><ul>");
+                        list.Where(e => e.Item2 == NodeType.Query)
+                            .Select(e => e.Item1.ConnectionName)
+                            .ToList()
+                            .ForEach(e => page.Append("<li>" + e + "</li>"));
+                        if (list.Any(e => e.Item2 == NodeType.Console))
+                        {
+                            page.Append("</ul><b>Console:</b><br /><ul>");
+                            list.Where(e => e.Item2 == NodeType.Console)
+                                .Select(e => e.Item1.ConnectionName)
+                                .ToList()
+                                .ForEach(e => page.Append("<li>" + e + "</li>"));
+                        }
+
+                        if (list.Any(e => e.Item2 == NodeType.Api))
+                        {
+                            page.Append("</ul><b>API:</b><br /><ul>");
+                            list.Where(e => e.Item2 == NodeType.Api)
+                                .Select(e => e.Item1.ConnectionName)
+                                .ToList()
+                                .ForEach(e => page.Append("<li>" + e + "</li>"));
+                        }
+
+                        page.Append("</ul>");
+
+                        page.Append("<br/><b>Chunks</b><br/>");
+
+                        var chunks = _node.GetChunkList();
+
+                        foreach (var item in chunks.OrderBy(e => e.Item1))
+                        {
+                            page.Append(item.Item1);
+                            page.Append(" - ");
+                            page.Append(item.Item2);
+                            page.Append(" located on ");
+                            page.Append(item.Item3.ConnectionName);
+                            page.Append("<br/>");
+                        }
+
+                        page.Append("</body></html>");
+
+                        return page.ToString();
                     }
                 }
-
-                controllers = controllers.OrderBy(e => e.ConnectionName).ToList();
-                storage = storage.OrderBy(e => e.ConnectionName).ToList();
-                query = query.OrderBy(e => e.ConnectionName).ToList();
-                console = console.OrderBy(e => e.ConnectionName).ToList();
-                api = console.OrderBy(e => e.ConnectionName).ToList();
-
-                StringBuilder page = new StringBuilder();
-                page.Append("<html><body><b>Controllers:</b><br /><ul>");
-                foreach (var controller in controllers)
-                {
-                    page.Append("<li>" + controller.ConnectionName);
-                    if (Equals(controller, _node.Primary))
-                    {
-                        page.Append(" <b>(PRIMARY)</b>");
-                    }
-
-                    page.Append("</li>");
-                }
-
-                page.Append("</ul><b>Storage:</b><br /><ul>");
-                storage.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
-                page.Append("</ul><b>Query:</b><br /><ul>");
-                query.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
-                if (console.Count > 0)
-                {
-                    page.Append("</ul><b>Console:</b><br /><ul>");
-                    console.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
-                }
-
-                if (api.Count > 0)
-                {
-                    page.Append("</ul><b>API:</b><br /><ul>");
-                    api.ForEach(e => page.Append("<li>" + e.ConnectionName + "</li>"));
-                }
-
-                page.Append("</ul></body></html>");
-
-                return page.ToString();
+            }
+            catch
+            {
+                // Just continue on to display the general error message.
             }
 
             return "<html><body>Node is not available at this time.</body></html>";
@@ -160,7 +193,7 @@ namespace Database.Controller
             switch (page)
             {
                 case "":
-                    return CreateMainPage();
+                    return CreateMainPage(queryString["json"] == "1");
 
                 default:
                     return "<html><body>Unknown Page</body></html>";

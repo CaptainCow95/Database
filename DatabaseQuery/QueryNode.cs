@@ -93,6 +93,8 @@ namespace Database.Query
                         Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
                         Primary = message.Address;
                     }
+
+                    SendMessage(new Message(message.Response, new Acknowledgement(), false));
                 }
             }
 
@@ -142,7 +144,9 @@ namespace Database.Query
                 }
 
                 Connections[message.Address].ConnectionEstablished(message.Address, attempt.Type);
-                SendMessage(new Message(message, new JoinSuccess(new Document()), false));
+                var response = new Message(message, new JoinSuccess(new Document()), true);
+                SendMessage(response);
+                response.BlockUntilDone();
             }
             else if (message.Data is NodeList)
             {
@@ -180,15 +184,14 @@ namespace Database.Query
             }
             else if (message.Data is DataOperation)
             {
-                DataOperation op = (DataOperation)message.Data;
-                Document dataOperation = new Document(op.Json);
+                Document dataOperation = new Document(((DataOperation)message.Data).Json);
                 if (!dataOperation.Valid)
                 {
                     SendMessage(new Message(message, new DataOperationResult(ErrorCodes.InvalidDocument, "The document is invalid."), false));
                     return;
                 }
 
-                DataOperationResult operationResult = ProcessDataOperation(dataOperation, op);
+                DataOperationResult operationResult = ProcessDataOperation(dataOperation);
 
                 SendMessage(new Message(message, operationResult, false));
             }
@@ -197,6 +200,7 @@ namespace Database.Query
                 _chunkListLock.EnterWriteLock();
                 _chunkList = ((ChunkListUpdate)message.Data).ChunkList;
                 _chunkListLock.ExitWriteLock();
+                SendMessage(new Message(message, new Acknowledgement(), false));
             }
         }
 
@@ -209,9 +213,8 @@ namespace Database.Query
         /// Processes an add operation.
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
-        /// <param name="op">The original operation message.</param>
         /// <returns>The result of the operation.</returns>
-        private DataOperationResult ProcessAddOperation(Document dataOperation, DataOperation op)
+        private DataOperationResult ProcessAddOperation(Document dataOperation)
         {
             AddOperation addOperation = new AddOperation(dataOperation["add"].ValueAsDocument);
             if (!addOperation.Valid)
@@ -230,7 +233,7 @@ namespace Database.Query
                 return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
             }
 
-            Message operationMessage = new Message(node, op, true);
+            Message operationMessage = new Message(node, new DataOperation("{\"0\":" + dataOperation.ToJson() + ",\"count\":1}"), true);
             SendMessage(operationMessage);
             operationMessage.BlockUntilDone();
             if (operationMessage.Success)
@@ -245,28 +248,27 @@ namespace Database.Query
         /// Processes a data operation.
         /// </summary>
         /// <param name="dataOperation">The data operation to process.</param>
-        /// <param name="op">The original data operation to pass on to the storage nodes.</param>
         /// <returns>The result of the operation.</returns>
-        private DataOperationResult ProcessDataOperation(Document dataOperation, DataOperation op)
+        private DataOperationResult ProcessDataOperation(Document dataOperation)
         {
             if (dataOperation.ContainsKey("add") && dataOperation["add"].ValueType == DocumentEntryType.Document)
             {
-                return ProcessAddOperation(dataOperation, op);
+                return ProcessAddOperation(dataOperation);
             }
 
             if (dataOperation.ContainsKey("remove") && dataOperation["remove"].ValueType == DocumentEntryType.Document)
             {
-                return ProcessRemoveOperation(dataOperation, op);
+                return ProcessRemoveOperation(dataOperation);
             }
 
             if (dataOperation.ContainsKey("update") && dataOperation["update"].ValueType == DocumentEntryType.Document)
             {
-                return ProcessUpdateOperation(dataOperation, op);
+                return ProcessUpdateOperation(dataOperation);
             }
 
             if (dataOperation.ContainsKey("query") && dataOperation["query"].ValueType == DocumentEntryType.Document)
             {
-                return ProcessQueryOperation(op);
+                return ProcessQueryOperation(dataOperation);
             }
 
             return new DataOperationResult(ErrorCodes.InvalidDocument, "No valid operation specified.");
@@ -275,16 +277,16 @@ namespace Database.Query
         /// <summary>
         /// Processes a query operation.
         /// </summary>
-        /// <param name="op">The original operation message.</param>
+        /// <param name="dataOperation">The document that represents the operation.</param>
         /// <returns>The result of the operation.</returns>
-        private DataOperationResult ProcessQueryOperation(DataOperation op)
+        private DataOperationResult ProcessQueryOperation(Document dataOperation)
         {
             List<Message> sent = new List<Message>();
             lock (_connectedStorageNodes)
             {
                 foreach (var item in _connectedStorageNodes)
                 {
-                    Message operationMessage = new Message(item, op, true);
+                    Message operationMessage = new Message(item, new DataOperation("{\"0\":" + dataOperation.ToJson() + ",\"count\":1}"), true);
                     SendMessage(operationMessage);
                     sent.Add(operationMessage);
                 }
@@ -331,9 +333,8 @@ namespace Database.Query
         /// Processes a remove operation.
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
-        /// <param name="op">The original operation message.</param>
         /// <returns>The result of the operation.</returns>
-        private DataOperationResult ProcessRemoveOperation(Document dataOperation, DataOperation op)
+        private DataOperationResult ProcessRemoveOperation(Document dataOperation)
         {
             RemoveOperation removeOperation = new RemoveOperation(dataOperation["remove"].ValueAsDocument);
             if (!removeOperation.Valid)
@@ -352,7 +353,7 @@ namespace Database.Query
                 return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
             }
 
-            Message operationMessage = new Message(node, op, true);
+            Message operationMessage = new Message(node, new DataOperation("{\"0\":" + dataOperation.ToJson() + ",\"count\":1}"), true);
             SendMessage(operationMessage);
             operationMessage.BlockUntilDone();
             if (operationMessage.Success)
@@ -367,9 +368,8 @@ namespace Database.Query
         /// Processes an update operation.
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
-        /// <param name="op">The original operation message.</param>
         /// <returns>The result of the operation.</returns>
-        private DataOperationResult ProcessUpdateOperation(Document dataOperation, DataOperation op)
+        private DataOperationResult ProcessUpdateOperation(Document dataOperation)
         {
             UpdateOperation updateOperation = new UpdateOperation(dataOperation["update"].ValueAsDocument);
             if (!updateOperation.Valid)
@@ -388,7 +388,7 @@ namespace Database.Query
                 return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
             }
 
-            Message operationMessage = new Message(node, op, true);
+            Message operationMessage = new Message(node, new DataOperation("{\"0\":" + dataOperation.ToJson() + ",\"count\":1}"), true);
             SendMessage(operationMessage);
             operationMessage.BlockUntilDone();
             if (operationMessage.Success)
@@ -458,6 +458,8 @@ namespace Database.Query
                                 Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
                                 Primary = message.Address;
                             }
+
+                            SendMessage(new Message(message.Response, new Acknowledgement(), false));
                         }
                     }
                 }

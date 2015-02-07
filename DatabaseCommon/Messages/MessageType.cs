@@ -68,6 +68,26 @@
         /// <summary>
         /// A <see cref="ChunkListUpdate"/> message.
         /// </summary>
-        ChunkListUpdate = 12
+        ChunkListUpdate = 12,
+
+        /// <summary>
+        /// A <see cref="ChunkSplit"/> message.
+        /// </summary>
+        ChunkSplit = 13,
+
+        /// <summary>
+        /// A <see cref="ChunkMerge"/> message.
+        /// </summary>
+        ChunkMerge = 14,
+
+        /// <summary>
+        /// A <see cref="Acknowledgement"/> message.
+        /// </summary>
+        Acknowledgement = 15,
+
+        /// <summary>
+        /// A <see cref="DatabaseCreate"/> message.
+        /// </summary>
+        DatabaseCreate = 16
     }
 }

@@ -166,6 +166,8 @@ namespace Database.Common.API
                         {
                             Primary = message.Address;
                         }
+
+                        SendMessage(new Message(message.Response, new Acknowledgement(), false));
                     }
                 }
             }
@@ -254,6 +256,7 @@ namespace Database.Common.API
                                     else
                                     {
                                         Connections[item].ConnectionEstablished(attempt.Address, NodeType.Query);
+                                        SendMessage(new Message(attempt.Response, new Acknowledgement(), false));
                                     }
                                 }
                             }

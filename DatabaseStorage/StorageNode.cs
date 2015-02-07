@@ -41,7 +41,7 @@ namespace Database.Storage
             : base(settings.Port)
         {
             _settings = settings;
-            _database = new Database();
+            _database = new Database(this);
         }
 
         /// <inheritdoc />
@@ -87,6 +87,8 @@ namespace Database.Storage
 
                         _database.SetMaxChunkItemCount(successData.Data["MaxChunkItemCount"].ValueAsInteger);
                     }
+
+                    SendMessage(new Message(message.Response, new Acknowledgement(), false));
                 }
             }
 
@@ -100,6 +102,15 @@ namespace Database.Storage
 
             AfterStop();
             _database.Shutdown();
+        }
+
+        /// <summary>
+        /// Allows the database to send a message.
+        /// </summary>
+        /// <param name="message">The message to send.</param>
+        internal void SendDatabaseMessage(Message message)
+        {
+            SendMessage(message);
         }
 
         /// <inheritdoc />
@@ -131,23 +142,23 @@ namespace Database.Storage
                 NodeDefinition nodeDef = new NodeDefinition(attempt.Name, attempt.Port);
                 RenameConnection(message.Address, nodeDef);
                 Connections[nodeDef].ConnectionEstablished(nodeDef, attempt.Type);
-                Message response = new Message(message, new JoinSuccess(new Document()), false)
+                Message response = new Message(message, new JoinSuccess(new Document()), true)
                 {
                     Address = nodeDef
                 };
 
                 SendMessage(response);
+                response.BlockUntilDone();
             }
             else if (message.Data is DataOperation)
             {
                 DataOperationResult result = _database.ProcessOperation((DataOperation)message.Data);
                 SendMessage(new Message(message, result, false));
             }
-            else if (message.Data is ChunkListUpdate)
+            else if (message.Data is DatabaseCreate)
             {
-                var chunkList = ((ChunkListUpdate)message.Data).ChunkList;
-
-                _database.ResetChunkList(chunkList.Where(e => Equals(e.Item3, Self)).Select(e => new Tuple<ChunkMarker, ChunkMarker>(e.Item1, e.Item2)).ToList());
+                _database.Create();
+                SendMessage(new Message(message, new Acknowledgement(), false));
             }
         }
 
@@ -213,6 +224,8 @@ namespace Database.Storage
                                 Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
                                 Primary = message.Address;
                             }
+
+                            SendMessage(new Message(message.Response, new Acknowledgement(), false));
                         }
                     }
                 }

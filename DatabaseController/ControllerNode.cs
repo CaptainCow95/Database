@@ -59,6 +59,18 @@ namespace Database.Controller
             get { return _self; }
         }
 
+        /// <summary>
+        /// Gets a list of the current database chunks.
+        /// </summary>
+        /// <returns>The list of the current database chunks.</returns>
+        public IReadOnlyCollection<Tuple<ChunkMarker, ChunkMarker, NodeDefinition>> GetChunkList()
+        {
+            lock (_chunkList)
+            {
+                return _chunkList.ToList().AsReadOnly();
+            }
+        }
+
         /// <inheritdoc />
         public override void Run()
         {
@@ -134,16 +146,9 @@ namespace Database.Controller
             }
             else if (type == NodeType.Storage)
             {
-                _chunkList.RemoveAll(e => Equals(e.Item3, node));
-
-                if (_chunkList.Count == 0)
+                lock (_chunkList)
                 {
-                    var newStorageNode = GetConnectedNodes().Where(e => e.Item2 == NodeType.Storage).Select(e => e.Item1).FirstOrDefault();
-                    if (!Equals(newStorageNode, default(NodeDefinition)))
-                    {
-                        _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(new ChunkMarker(ChunkMarkerType.Start), new ChunkMarker(ChunkMarkerType.End), newStorageNode));
-                        SendChunkList();
-                    }
+                    _chunkList.RemoveAll(e => Equals(e.Item3, node));
                 }
             }
         }
@@ -158,147 +163,7 @@ namespace Database.Controller
 
             if (message.Data is JoinAttempt)
             {
-                JoinAttempt joinAttemptData = (JoinAttempt)message.Data;
-                switch (joinAttemptData.Type)
-                {
-                    case NodeType.Controller:
-                        ControllerNodeSettings joinSettings = new ControllerNodeSettings(joinAttemptData.Settings);
-                        if (joinSettings.ConnectionString != _settings.ConnectionString)
-                        {
-                            SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
-                        }
-                        else if (joinSettings.MaxChunkItemCount != _settings.MaxChunkItemCount)
-                        {
-                            SendMessage(new Message(message, new JoinFailure("Max chunk item counts do not match."), false));
-                        }
-                        else if (joinSettings.RedundantNodesPerLocation != _settings.RedundantNodesPerLocation)
-                        {
-                            SendMessage(new Message(message,
-                                new JoinFailure("Redundent nodes per location do not match."), false));
-                        }
-                        else
-                        {
-                            NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
-                            if (Equals(message.Address, nodeDef))
-                            {
-                                Logger.Log("Duplicate connection found. Not recognizing new connection in favor of the old one.", LogLevel.Info);
-                            }
-
-                            RenameConnection(message.Address, nodeDef);
-                            Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
-                            Message response = new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), false)
-                            {
-                                Address = nodeDef
-                            };
-
-                            SendMessage(response);
-
-                            if (joinAttemptData.Primary)
-                            {
-                                Logger.Log("Connection to primary controller established, setting primary to " + message.Address.ConnectionName, LogLevel.Info);
-                                Primary = nodeDef;
-                            }
-
-                            if (Equals(Primary, Self))
-                            {
-                                SendChunkList();
-                            }
-                        }
-
-                        break;
-
-                    case NodeType.Query:
-                        QueryNodeSettings queryJoinSettings = new QueryNodeSettings(joinAttemptData.Settings);
-                        if (queryJoinSettings.ConnectionString != _settings.ConnectionString)
-                        {
-                            SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
-                        }
-                        else
-                        {
-                            NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
-                            RenameConnection(message.Address, nodeDef);
-                            Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
-                            Message response = new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), false)
-                            {
-                                Address = nodeDef
-                            };
-
-                            SendMessage(response);
-
-                            SendStorageNodeConnectionMessage();
-                            SendQueryNodeConnectionMessage();
-
-                            if (Equals(Primary, Self))
-                            {
-                                SendChunkList();
-                            }
-                        }
-
-                        break;
-
-                    case NodeType.Storage:
-                        StorageNodeSettings storageJoinSettings = new StorageNodeSettings(joinAttemptData.Settings);
-                        if (storageJoinSettings.ConnectionString != _settings.ConnectionString)
-                        {
-                            SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
-                        }
-                        else
-                        {
-                            NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
-                            RenameConnection(message.Address, nodeDef);
-                            Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
-
-                            var responseData = new Document();
-                            responseData["PrimaryController"] = new DocumentEntry("PrimaryController", DocumentEntryType.Boolean, Equals(Primary, Self));
-                            if (Equals(Primary, Self))
-                            {
-                                responseData["MaxChunkItemCount"] = new DocumentEntry("MaxChunkItemCount", DocumentEntryType.Integer, _settings.MaxChunkItemCount);
-                            }
-
-                            Message response = new Message(message, new JoinSuccess(responseData), false)
-                            {
-                                Address = nodeDef
-                            };
-
-                            bool updatedChunkList = false;
-                            if (Equals(Primary, Self) && _chunkList.Count == 0)
-                            {
-                                _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(new ChunkMarker(ChunkMarkerType.Start), new ChunkMarker(ChunkMarkerType.End), nodeDef));
-                                updatedChunkList = true;
-                            }
-
-                            SendMessage(response);
-
-                            SendStorageNodeConnectionMessage();
-
-                            if (updatedChunkList)
-                            {
-                                SendChunkList();
-                            }
-                        }
-
-                        break;
-
-                    case NodeType.Console:
-                        Connections[message.Address].ConnectionEstablished(message.Address, joinAttemptData.Type);
-                        SendMessage(new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), false));
-                        break;
-
-                    case NodeType.Api:
-                        if (joinAttemptData.Settings != _settings.ConnectionString)
-                        {
-                            SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
-                        }
-                        else
-                        {
-                            Connections[message.Address].ConnectionEstablished(message.Address, joinAttemptData.Type);
-                            SendMessage(new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), false));
-
-                            SendQueryNodeConnectionMessage();
-                        }
-
-                        break;
-                }
+                HandleJoinAttemptMessage(message, (JoinAttempt)message.Data);
             }
             else if (message.Data is VotingRequest)
             {
@@ -379,7 +244,36 @@ namespace Database.Controller
             }
             else if (message.Data is ChunkListUpdate)
             {
-                _chunkList = ((ChunkListUpdate)message.Data).ChunkList;
+                lock (_chunkList)
+                {
+                    _chunkList = ((ChunkListUpdate)message.Data).ChunkList;
+                }
+            }
+            else if (message.Data is ChunkSplit)
+            {
+                ChunkSplit splitData = (ChunkSplit)message.Data;
+                lock (_chunkList)
+                {
+                    _chunkList.Remove(_chunkList.Find(e => Equals(e.Item1, splitData.Start1)));
+                    _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(splitData.Start1, splitData.End1, message.Address));
+                    _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(splitData.Start2, splitData.End2, message.Address));
+                }
+
+                SendMessage(new Message(message, new Acknowledgement(), false));
+                SendChunkList();
+            }
+            else if (message.Data is ChunkMerge)
+            {
+                ChunkMerge mergeData = (ChunkMerge)message.Data;
+                lock (_chunkList)
+                {
+                    _chunkList.Remove(_chunkList.Find(e => Equals(e.Item1, mergeData.Start)));
+                    _chunkList.Remove(_chunkList.Find(e => Equals(e.Item2, mergeData.End)));
+                    _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(mergeData.Start, mergeData.End, message.Address));
+                }
+
+                SendMessage(new Message(message, new Acknowledgement(), false));
+                SendChunkList();
             }
         }
 
@@ -421,6 +315,8 @@ namespace Database.Controller
                     Logger.Log("Setting the primary controller to " + target.ConnectionName, LogLevel.Info);
                     Primary = target;
                 }
+
+                SendMessage(new Message(message.Response, new Acknowledgement(), false));
             }
             else
             {
@@ -428,6 +324,194 @@ namespace Database.Controller
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Handles a <see cref="JoinAttempt"/> message.
+        /// </summary>
+        /// <param name="message">The message that was received.</param>
+        /// <param name="joinAttemptData">The <see cref="JoinAttempt"/> that was received.</param>
+        private void HandleJoinAttemptMessage(Message message, JoinAttempt joinAttemptData)
+        {
+            switch (joinAttemptData.Type)
+            {
+                case NodeType.Controller:
+                    ControllerNodeSettings joinSettings = new ControllerNodeSettings(joinAttemptData.Settings);
+                    if (joinSettings.ConnectionString != _settings.ConnectionString)
+                    {
+                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
+                    }
+                    else if (joinSettings.MaxChunkItemCount != _settings.MaxChunkItemCount)
+                    {
+                        SendMessage(new Message(message, new JoinFailure("Max chunk item counts do not match."), false));
+                    }
+                    else if (joinSettings.RedundantNodesPerLocation != _settings.RedundantNodesPerLocation)
+                    {
+                        SendMessage(new Message(message, new JoinFailure("Redundent nodes per location do not match."), false));
+                    }
+                    else
+                    {
+                        NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
+                        if (Equals(message.Address, nodeDef))
+                        {
+                            Logger.Log("Duplicate connection found. Not recognizing new connection in favor of the old one.", LogLevel.Info);
+                        }
+
+                        RenameConnection(message.Address, nodeDef);
+                        Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
+                        Message response = new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), true)
+                        {
+                            Address = nodeDef
+                        };
+
+                        SendMessage(response);
+                        response.BlockUntilDone();
+
+                        if (response.Success)
+                        {
+                            if (joinAttemptData.Primary)
+                            {
+                                Logger.Log("Connection to primary controller established, setting primary to " + message.Address.ConnectionName, LogLevel.Info);
+                                Primary = nodeDef;
+                            }
+
+                            SendChunkList();
+                        }
+                    }
+
+                    break;
+
+                case NodeType.Query:
+                    QueryNodeSettings queryJoinSettings = new QueryNodeSettings(joinAttemptData.Settings);
+                    if (queryJoinSettings.ConnectionString != _settings.ConnectionString)
+                    {
+                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
+                    }
+                    else
+                    {
+                        NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
+                        RenameConnection(message.Address, nodeDef);
+                        Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
+                        Message response = new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")),
+                            true)
+                        {
+                            Address = nodeDef
+                        };
+
+                        SendMessage(response);
+                        response.BlockUntilDone();
+
+                        if (response.Success)
+                        {
+                            SendStorageNodeConnectionMessage();
+                            SendQueryNodeConnectionMessage();
+
+                            SendChunkList();
+                        }
+                    }
+
+                    break;
+
+                case NodeType.Storage:
+                    StorageNodeSettings storageJoinSettings = new StorageNodeSettings(joinAttemptData.Settings);
+                    if (storageJoinSettings.ConnectionString != _settings.ConnectionString)
+                    {
+                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
+                    }
+                    else
+                    {
+                        NodeDefinition nodeDef = new NodeDefinition(joinAttemptData.Name, joinAttemptData.Port);
+                        RenameConnection(message.Address, nodeDef);
+                        Connections[nodeDef].ConnectionEstablished(nodeDef, joinAttemptData.Type);
+
+                        var responseData = new Document();
+                        responseData["PrimaryController"] = new DocumentEntry("PrimaryController", DocumentEntryType.Boolean, Equals(Primary, Self));
+                        if (Equals(Primary, Self))
+                        {
+                            responseData["MaxChunkItemCount"] = new DocumentEntry("MaxChunkItemCount", DocumentEntryType.Integer, _settings.MaxChunkItemCount);
+                        }
+
+                        Message response = new Message(message, new JoinSuccess(responseData), true)
+                        {
+                            Address = nodeDef
+                        };
+
+                        SendMessage(response);
+                        response.BlockUntilDone();
+
+                        if (response.Success)
+                        {
+                            SendStorageNodeConnectionMessage();
+
+                            bool updatedChunkList = false;
+                            lock (_chunkList)
+                            {
+                                if (Equals(Primary, Self) && _chunkList.Count == 0)
+                                {
+                                    _chunkList.Add(new Tuple<ChunkMarker, ChunkMarker, NodeDefinition>(new ChunkMarker(ChunkMarkerType.Start), new ChunkMarker(ChunkMarkerType.End), nodeDef));
+                                    updatedChunkList = true;
+                                }
+                            }
+
+                            if (updatedChunkList)
+                            {
+                                bool success = false;
+                                foreach (var storageNode in GetConnectedNodes().Where(e => e.Item2 == NodeType.Storage).Select(e => e.Item1))
+                                {
+                                    Message storageNodeMessage = new Message(storageNode, new DatabaseCreate(), true);
+                                    SendMessage(storageNodeMessage);
+                                    storageNodeMessage.BlockUntilDone();
+                                    success = storageNodeMessage.Success;
+                                    if (success)
+                                    {
+                                        break;
+                                    }
+                                }
+
+                                if (!success)
+                                {
+                                    lock (_chunkList)
+                                    {
+                                        _chunkList.Clear();
+                                    }
+                                }
+                                else
+                                {
+                                    SendChunkList();
+                                }
+                            }
+                        }
+                    }
+
+                    break;
+
+                case NodeType.Console:
+                    Connections[message.Address].ConnectionEstablished(message.Address, joinAttemptData.Type);
+                    var consoleResponse = new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), true);
+                    SendMessage(consoleResponse);
+                    consoleResponse.BlockUntilDone();
+                    break;
+
+                case NodeType.Api:
+                    if (joinAttemptData.Settings != _settings.ConnectionString)
+                    {
+                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
+                    }
+                    else
+                    {
+                        Connections[message.Address].ConnectionEstablished(message.Address, joinAttemptData.Type);
+                        var apiResponse = new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), true);
+                        SendMessage(apiResponse);
+                        apiResponse.BlockUntilDone();
+
+                        if (apiResponse.Success)
+                        {
+                            SendQueryNodeConnectionMessage();
+                        }
+                    }
+
+                    break;
+            }
         }
 
         /// <summary>
@@ -505,15 +589,22 @@ namespace Database.Controller
         /// </summary>
         private void SendChunkList()
         {
+            if (!Equals(Self, Primary))
+            {
+                return;
+            }
+
             ChunkListUpdate update;
             lock (_chunkList)
             {
                 update = new ChunkListUpdate(_chunkList);
-            }
 
-            foreach (var node in GetConnectedNodes())
-            {
-                SendMessage(new Message(node.Item1, update, false));
+                foreach (var node in GetConnectedNodes().Where(e => e.Item2 == NodeType.Controller || e.Item2 == NodeType.Query))
+                {
+                    Message message = new Message(node.Item1, update, true);
+                    SendMessage(message);
+                    message.BlockUntilDone();
+                }
             }
         }
 

@@ -25,8 +25,8 @@ namespace Database.Common.Messages
             {
                 List<DocumentEntry> arrayEntry = new List<DocumentEntry>()
                 {
-                    new DocumentEntry(string.Empty, DocumentEntryType.String, chunkList[i].Item1.ConvertToString()),
-                    new DocumentEntry(string.Empty, DocumentEntryType.String, chunkList[i].Item2.ConvertToString()),
+                    new DocumentEntry(string.Empty, DocumentEntryType.String, chunkList[i].Item1.ToString()),
+                    new DocumentEntry(string.Empty, DocumentEntryType.String, chunkList[i].Item2.ToString()),
                     new DocumentEntry(string.Empty, DocumentEntryType.String, chunkList[i].Item3.ConnectionName)
                 };
 

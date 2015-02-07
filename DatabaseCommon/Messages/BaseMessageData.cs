@@ -58,6 +58,18 @@ namespace Database.Common.Messages
                 case MessageType.ChunkListUpdate:
                     return new ChunkListUpdate(data, index);
 
+                case MessageType.ChunkSplit:
+                    return new ChunkSplit(data, index);
+
+                case MessageType.ChunkMerge:
+                    return new ChunkMerge(data, index);
+
+                case MessageType.Acknowledgement:
+                    return new Acknowledgement();
+
+                case MessageType.DatabaseCreate:
+                    return new DatabaseCreate();
+
                 default:
                     throw new Exception("Message type id not found: " + messageTypeIdConverted);
             }
