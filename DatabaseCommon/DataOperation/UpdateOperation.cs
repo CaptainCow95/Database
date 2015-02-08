@@ -42,7 +42,7 @@ namespace Database.Common.DataOperation
         {
             if (doc == null)
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The value under \"update\" is not a valid document.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The value under 'update' is not a valid document.");
                 return;
             }
 
@@ -56,18 +56,18 @@ namespace Database.Common.DataOperation
                 }
                 catch (Exception)
                 {
-                    _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The \"documentId\" field is not a valid ObjectId.");
+                    _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The 'documentId' field is not a valid ObjectId.");
                     return;
                 }
             }
             else if (doc.ContainsKey("documentId"))
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The \"documentId\" field is not a string value.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The 'documentId' field is not a string value.");
                 return;
             }
             else
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The \"documentId\" field is required for the update operation.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The 'documentId' field is required for the update operation.");
                 return;
             }
 
@@ -78,7 +78,7 @@ namespace Database.Common.DataOperation
             }
             else if (doc.ContainsKey("updateFields"))
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The \"updateFields\" field is present, but is not a valid document.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The 'updateFields' field is present, but is not a valid document.");
                 return;
             }
 
@@ -90,7 +90,7 @@ namespace Database.Common.DataOperation
                 {
                     if (item.ValueType != DocumentEntryType.String)
                     {
-                        _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "Not all items in the \"removeFields\" array is a string.");
+                        _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "Not all items in the 'removeFields' array is a string.");
                         return;
                     }
 
@@ -99,13 +99,13 @@ namespace Database.Common.DataOperation
             }
             else if (doc.ContainsKey("removeFields"))
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The \"removeFields\" field is present, but is not a valid array.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The 'removeFields' field is present, but is not a valid array.");
                 return;
             }
 
             if (foundFields != doc.Count)
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The number of found fields in the \"update\" document does not match the number of valid fields.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The number of found fields in the 'update' document does not match the number of valid fields.");
             }
 
             if (_updateFields.ContainsKey("id") || _removeFields.Contains("id"))

@@ -30,7 +30,7 @@ namespace Database.Common.DataOperation
         {
             if (doc == null)
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The value under \"query\" is not a valid document.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The value under 'query' is not a valid document.");
                 return;
             }
 
@@ -42,18 +42,18 @@ namespace Database.Common.DataOperation
             }
             else if (doc.ContainsKey("fields"))
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The \"fields\" field is present, but is not a valid document.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The 'fields' field is present, but is not a valid document.");
                 return;
             }
             else
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The \"fields\" field is required for the query operation.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The 'fields' field is required for the query operation.");
                 return;
             }
 
             if (foundFields != doc.Count)
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The number of found fields in the \"query\" document does not match the number of valid fields.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The number of found fields in the 'query' document does not match the number of valid fields.");
                 return;
             }
 

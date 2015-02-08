@@ -31,7 +31,7 @@ namespace Database.Common.DataOperation
         {
             if (doc == null)
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The value under \"remove\" is not a valid document.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The value under 'remove' is not a valid document.");
                 return;
             }
 
@@ -43,24 +43,24 @@ namespace Database.Common.DataOperation
                 }
                 catch (Exception)
                 {
-                    _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The \"documentId\" field is not a valid ObjectId.");
+                    _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The 'documentId' field is not a valid ObjectId.");
                     return;
                 }
             }
             else if (doc.ContainsKey("documentId"))
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The \"documentId\" field is not a string value.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The 'documentId' field is not a string value.");
                 return;
             }
             else
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The \"documentId\" field is required for the update operation.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidId, "The 'documentId' field is required for the update operation.");
                 return;
             }
 
             if (doc.Count != 1)
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The number of found fields in the \"remove\" document does not match the number of valid fields.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The number of found fields in the 'remove' document does not match the number of valid fields.");
             }
 
             _valid = true;

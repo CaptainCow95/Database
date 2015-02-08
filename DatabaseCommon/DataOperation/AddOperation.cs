@@ -36,25 +36,25 @@ namespace Database.Common.DataOperation
         {
             if (doc == null)
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The value under \"add\" is not a valid document.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The value under 'add' is not a valid document.");
                 return;
             }
 
             if (!doc.ContainsKey("document"))
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The \"document\" field is required for the add operation.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The 'document' field is required for the add operation.");
                 return;
             }
 
             if (doc["document"].ValueType != DocumentEntryType.Document)
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The \"document\" field is not a valid document.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The 'document' field is not a valid document.");
                 return;
             }
 
             if (doc.Count != 1)
             {
-                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The number of found fields in the \"add\" document does not match the number of valid fields.");
+                _errorMessage = new DataOperationResult(ErrorCodes.InvalidDocument, "The number of found fields in the 'add' document does not match the number of valid fields.");
                 return;
             }
 
