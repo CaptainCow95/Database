@@ -18,16 +18,9 @@ namespace Database.Common.Messages
         /// </summary>
         /// <param name="doc">The result of the operation.</param>
         /// <param name="addSuccess">A value indicating whether to add the success and result fields.</param>
-        public DataOperationResult(Document doc, bool addSuccess = true)
+        public DataOperationResult(Document doc)
         {
-            if (addSuccess)
-            {
-                _result = "{\"success\":true,\"result\":" + doc.ToJson() + "}";
-            }
-            else
-            {
-                _result = doc.ToJson();
-            }
+            _result = "{\"success\":true,\"result\":" + doc.ToJson() + "}";
         }
 
         /// <summary>

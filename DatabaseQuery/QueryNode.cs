@@ -184,16 +184,25 @@ namespace Database.Query
             }
             else if (message.Data is DataOperation)
             {
-                Document dataOperation = new Document(((DataOperation)message.Data).Json);
+                DataOperation op = (DataOperation)message.Data;
+                Document dataOperation = new Document(op.Json);
                 if (!dataOperation.Valid)
                 {
                     SendMessage(new Message(message, new DataOperationResult(ErrorCodes.InvalidDocument, "The document is invalid."), false));
                     return;
                 }
 
-                DataOperationResult operationResult = ProcessDataOperation(dataOperation);
-                Document modifiedDocument = new Document(operationResult.Result);
-                SendMessage(new Message(message, new DataOperationResult(modifiedDocument["0"].ValueAsDocument, false), false));
+                BaseMessageData returnData;
+                try
+                {
+                    returnData = ProcessDataOperation(dataOperation, op);
+                }
+                catch
+                {
+                    returnData = new DataOperationResult(ErrorCodes.FailedMessage, "An exception occurrd while processing the operation.");
+                }
+
+                SendMessage(new Message(message, returnData, false));
             }
             else if (message.Data is ChunkListUpdate)
             {
@@ -214,7 +223,7 @@ namespace Database.Query
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
         /// <returns>The result of the operation.</returns>
-        private DataOperationResult ProcessAddOperation(Document dataOperation)
+        private DataOperationResult ProcessAddOperation(Document dataOperation, DataOperation op)
         {
             AddOperation addOperation = new AddOperation(dataOperation["add"].ValueAsDocument);
             if (!addOperation.Valid)
@@ -233,7 +242,7 @@ namespace Database.Query
                 return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
             }
 
-            Message operationMessage = new Message(node, new DataOperation("{\"0\":" + dataOperation.ToJson() + ",\"count\":1}"), true);
+            Message operationMessage = new Message(node, op, true);
             SendMessage(operationMessage);
             operationMessage.BlockUntilDone();
             if (operationMessage.Success)
@@ -249,26 +258,26 @@ namespace Database.Query
         /// </summary>
         /// <param name="dataOperation">The data operation to process.</param>
         /// <returns>The result of the operation.</returns>
-        private DataOperationResult ProcessDataOperation(Document dataOperation)
+        private DataOperationResult ProcessDataOperation(Document dataOperation, DataOperation op)
         {
             if (dataOperation.ContainsKey("add") && dataOperation["add"].ValueType == DocumentEntryType.Document)
             {
-                return ProcessAddOperation(dataOperation);
+                return ProcessAddOperation(dataOperation, op);
             }
 
             if (dataOperation.ContainsKey("remove") && dataOperation["remove"].ValueType == DocumentEntryType.Document)
             {
-                return ProcessRemoveOperation(dataOperation);
+                return ProcessRemoveOperation(dataOperation, op);
             }
 
             if (dataOperation.ContainsKey("update") && dataOperation["update"].ValueType == DocumentEntryType.Document)
             {
-                return ProcessUpdateOperation(dataOperation);
+                return ProcessUpdateOperation(dataOperation, op);
             }
 
             if (dataOperation.ContainsKey("query") && dataOperation["query"].ValueType == DocumentEntryType.Document)
             {
-                return ProcessQueryOperation(dataOperation);
+                return ProcessQueryOperation(dataOperation, op);
             }
 
             return new DataOperationResult(ErrorCodes.InvalidDocument, "No valid operation specified.");
@@ -279,14 +288,14 @@ namespace Database.Query
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
         /// <returns>The result of the operation.</returns>
-        private DataOperationResult ProcessQueryOperation(Document dataOperation)
+        private DataOperationResult ProcessQueryOperation(Document dataOperation, DataOperation op)
         {
             List<Message> sent = new List<Message>();
             lock (_connectedStorageNodes)
             {
                 foreach (var item in _connectedStorageNodes)
                 {
-                    Message operationMessage = new Message(item, new DataOperation("{\"0\":" + dataOperation.ToJson() + ",\"count\":1}"), true);
+                    Message operationMessage = new Message(item, op, true);
                     SendMessage(operationMessage);
                     sent.Add(operationMessage);
                 }
@@ -300,9 +309,9 @@ namespace Database.Query
                 if (result.Success)
                 {
                     Document doc = new Document(((DataOperationResult)result.Response.Data).Result);
-                    if (doc["0"].ValueAsDocument["success"].ValueAsBoolean)
+                    if (doc["success"].ValueAsBoolean)
                     {
-                        Document results = doc["0"].ValueAsDocument["result"].ValueAsDocument;
+                        Document results = doc["result"].ValueAsDocument;
                         for (int j = 0; j < results["count"].ValueAsInteger; ++j)
                         {
                             workingDocument[i.ToString()] = new DocumentEntry(i.ToString(), results[j.ToString()].ValueType, results[j.ToString()].Value);
@@ -326,7 +335,7 @@ namespace Database.Query
             }
 
             workingDocument["count"] = new DocumentEntry("count", DocumentEntryType.Integer, i);
-            return new DataOperationResult(new Document("{\"0\":{\"success\":true,\"result\":" + workingDocument.ToJson() + "}}"), false);
+            return new DataOperationResult(workingDocument);
         }
 
         /// <summary>
@@ -334,7 +343,7 @@ namespace Database.Query
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
         /// <returns>The result of the operation.</returns>
-        private DataOperationResult ProcessRemoveOperation(Document dataOperation)
+        private DataOperationResult ProcessRemoveOperation(Document dataOperation, DataOperation op)
         {
             RemoveOperation removeOperation = new RemoveOperation(dataOperation["remove"].ValueAsDocument);
             if (!removeOperation.Valid)
@@ -353,7 +362,7 @@ namespace Database.Query
                 return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
             }
 
-            Message operationMessage = new Message(node, new DataOperation("{\"0\":" + dataOperation.ToJson() + ",\"count\":1}"), true);
+            Message operationMessage = new Message(node, op, true);
             SendMessage(operationMessage);
             operationMessage.BlockUntilDone();
             if (operationMessage.Success)
@@ -369,7 +378,7 @@ namespace Database.Query
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
         /// <returns>The result of the operation.</returns>
-        private DataOperationResult ProcessUpdateOperation(Document dataOperation)
+        private DataOperationResult ProcessUpdateOperation(Document dataOperation, DataOperation op)
         {
             UpdateOperation updateOperation = new UpdateOperation(dataOperation["update"].ValueAsDocument);
             if (!updateOperation.Valid)
@@ -388,7 +397,7 @@ namespace Database.Query
                 return new DataOperationResult(ErrorCodes.FailedMessage, "No storage node up for the specified id range.");
             }
 
-            Message operationMessage = new Message(node, new DataOperation("{\"0\":" + dataOperation.ToJson() + ",\"count\":1}"), true);
+            Message operationMessage = new Message(node, op, true);
             SendMessage(operationMessage);
             operationMessage.BlockUntilDone();
             if (operationMessage.Success)

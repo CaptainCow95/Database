@@ -152,7 +152,16 @@ namespace Database.Storage
             }
             else if (message.Data is DataOperation)
             {
-                DataOperationResult result = _database.ProcessOperation((DataOperation)message.Data);
+                DataOperationResult result;
+                try
+                {
+                    result = _database.ProcessOperation((DataOperation)message.Data);
+                }
+                catch
+                {
+                    result = new DataOperationResult(ErrorCodes.FailedMessage, "An exception occurred while processing the operation.");
+                }
+
                 SendMessage(new Message(message, result, false));
             }
             else if (message.Data is DatabaseCreate)

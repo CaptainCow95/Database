@@ -11,11 +11,6 @@
         InvalidDocument,
 
         /// <summary>
-        /// Multiple operations were requested.
-        /// </summary>
-        MultipleOperations,
-
-        /// <summary>
         /// The operation requested does not allow sub-keys.
         /// </summary>
         SubkeysNotAllowed,

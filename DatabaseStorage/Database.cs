@@ -92,28 +92,44 @@ namespace Database.Storage
                 return new DataOperationResult(ErrorCodes.InvalidDocument, "The document is invalid.");
             }
 
-            if (!doc.ContainsKey("count") || doc["count"].ValueType != DocumentEntryType.Integer)
+            if (doc.Count != 1)
             {
-                return new DataOperationResult(ErrorCodes.InvalidDocument, "No count field or it is not an integer.");
+                return new DataOperationResult(ErrorCodes.InvalidDocument, "Multiple entries in the operation.");
             }
 
-            for (int i = 0; i < doc["count"].ValueAsInteger; ++i)
+            var item = doc.First();
+            switch (item.Key)
             {
-                if (!doc.ContainsKey(i.ToString()) || doc[i.ToString()].ValueType != DocumentEntryType.Document)
-                {
-                    return new DataOperationResult(ErrorCodes.InvalidDocument, "No operation or invalid operation defined for the field number " + i + ".");
-                }
+                case "add":
+                    if (doc.CheckForSubkeys())
+                    {
+                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the add operation.");
+                    }
+
+                    return ProcessAddOperation(item.Value.ValueAsDocument);
+
+                case "update":
+                    if (doc.CheckForSubkeys())
+                    {
+                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the update operation.");
+                    }
+
+                    return ProcessUpdateOperation(item.Value.ValueAsDocument);
+
+                case "remove":
+                    if (doc.CheckForSubkeys())
+                    {
+                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the remove operation.");
+                    }
+
+                    return ProcessRemoveOperation(item.Value.ValueAsDocument);
+
+                case "query":
+                    return ProcessQueryOperation(item.Value.ValueAsDocument);
+
+                default:
+                    return new DataOperationResult(ErrorCodes.InvalidDocument, "Invalid operation specified.");
             }
-
-            Document returnDocument = new Document();
-            for (int i = 0; i < doc["count"].ValueAsInteger; ++i)
-            {
-                returnDocument[i.ToString()] = new DocumentEntry(i.ToString(), DocumentEntryType.Document, new Document(ProcessSingleOperation(doc[i.ToString()].ValueAsDocument).Result));
-            }
-
-            returnDocument["count"] = new DocumentEntry("count", DocumentEntryType.Integer, doc["count"].ValueAsInteger);
-
-            return new DataOperationResult(returnDocument, false);
         }
 
         /// <summary>
@@ -253,53 +269,6 @@ namespace Database.Storage
             }
 
             return new DataOperationResult(removed);
-        }
-
-        /// <summary>
-        /// Processes a single operation.
-        /// </summary>
-        /// <param name="doc">The operation to process.</param>
-        /// <returns>The result of the operation.</returns>
-        private DataOperationResult ProcessSingleOperation(Document doc)
-        {
-            if (doc.Count != 1)
-            {
-                return new DataOperationResult(ErrorCodes.InvalidDocument, "Multiple entries in the operation.");
-            }
-
-            var item = doc.First();
-            switch (item.Key)
-            {
-                case "add":
-                    if (doc.CheckForSubkeys())
-                    {
-                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the add operation.");
-                    }
-
-                    return ProcessAddOperation(item.Value.ValueAsDocument);
-
-                case "update":
-                    if (doc.CheckForSubkeys())
-                    {
-                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the update operation.");
-                    }
-
-                    return ProcessUpdateOperation(item.Value.ValueAsDocument);
-
-                case "remove":
-                    if (doc.CheckForSubkeys())
-                    {
-                        return new DataOperationResult(ErrorCodes.SubkeysNotAllowed, "Subkeys are not allowed in the remove operation.");
-                    }
-
-                    return ProcessRemoveOperation(item.Value.ValueAsDocument);
-
-                case "query":
-                    return ProcessQueryOperation(item.Value.ValueAsDocument);
-
-                default:
-                    return new DataOperationResult(ErrorCodes.InvalidDocument, "Invalid operation specified.");
-            }
         }
 
         /// <summary>
