@@ -1,4 +1,5 @@
 ﻿using Database.Common;
+using Database.Common.DataOperation;
 using Database.Common.Messages;
 using System;
 using System.Collections.Generic;
@@ -20,6 +21,8 @@ namespace Database.Console
         /// </summary>
         private NodeDefinition _connectedDef;
 
+        private bool _consoleRunning;
+
         /// <inheritdoc />
         public override NodeDefinition Self
         {
@@ -29,6 +32,8 @@ namespace Database.Console
         /// <inheritdoc />
         public override void Run()
         {
+            _consoleRunning = true;
+
             // Disable Logging
             Logger.Disable();
             BeforeStart();
@@ -36,12 +41,17 @@ namespace Database.Console
             CommandParser parser = new CommandParser();
             parser.AddCommand(new CommandSyntax(new CommandPartLiteral("connect "), new CommandPartString()), CommandConnect);
             parser.AddCommand(new CommandSyntax(new CommandPartLiteral("disconnect")), CommandDisconnect);
+            parser.AddCommand(new CommandSyntax(new CommandPartLiteral("exit")), CommandExit);
             parser.AddCommand(new CommandSyntax(new CommandPartLiteral("help")), CommandHelp);
-            parser.AddCommand(new CommandSyntax(new CommandPartLiteral("operation "), new CommandPartString()), CommandOperation);
+            parser.AddCommand(new CommandSyntax(new CommandPartLiteral("help"), new CommandPartString()), CommandHelpDetailed);
+            parser.AddCommand(new CommandSyntax(new CommandPartLiteral("add"), new CommandPartString()), CommandAdd);
+            parser.AddCommand(new CommandSyntax(new CommandPartLiteral("query"), new CommandPartString()), CommandQuery);
+            parser.AddCommand(new CommandSyntax(new CommandPartLiteral("remove"), new CommandPartString()), CommandRemove);
+            parser.AddCommand(new CommandSyntax(new CommandPartLiteral("update"), new CommandPartString()), CommandUpdate);
 
             System.Console.WriteLine("Type \"help\" for a list of commands.");
 
-            while (Running)
+            while (_consoleRunning)
             {
                 System.Console.Write("> ");
                 if (!parser.ParseCommand(System.Console.ReadLine()))
@@ -68,6 +78,46 @@ namespace Database.Console
         protected override void PrimaryChanged()
         {
             throw new NotImplementedException();
+        }
+
+        private void CommandAdd(List<CommandPart> command)
+        {
+            Document op = new Document(((CommandPartString)command[1]).Value);
+
+            Message message;
+            if (op.ContainsKey("id"))
+            {
+                message = new Message(_connectedDef, new DataOperation("{\"add\":{\"document\":" + op.ToJson() + "}}"), true);
+                SendMessage(message);
+                message.BlockUntilDone();
+            }
+            else
+            {
+                while (true)
+                {
+                    op["id"] = new DocumentEntry("id", DocumentEntryType.String, new ObjectId().ToString());
+                    message = new Message(_connectedDef, new DataOperation("{\"add\":{\"document\":" + op.ToJson() + "}}"), true);
+                    SendMessage(message);
+                    message.BlockUntilDone();
+
+                    if (!message.Success)
+                    {
+                        break;
+                    }
+
+                    var result = new Document(((DataOperationResult)message.Response.Data).Result);
+                    if (!result["success"].ValueAsBoolean && (ErrorCodes)Enum.Parse(typeof(ErrorCodes), result["errorcode"].ValueAsString) == ErrorCodes.InvalidId)
+                    {
+                        op["id"] = new DocumentEntry("id", DocumentEntryType.String, new ObjectId().ToString());
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+
+            System.Console.WriteLine(message.Success ? ((DataOperationResult)message.Response.Data).Result : "Message failure.");
         }
 
         /// <summary>
@@ -143,6 +193,11 @@ namespace Database.Console
             _connectedDef = null;
         }
 
+        private void CommandExit(List<CommandPart> command)
+        {
+            _consoleRunning = false;
+        }
+
         /// <summary>
         /// The help command.
         /// </summary>
@@ -151,19 +206,86 @@ namespace Database.Console
         {
             System.Console.WriteLine("connect STRING:\t\tconnects to the specified node");
             System.Console.WriteLine("disconnect:\t\tdisconnects from the node");
+            System.Console.WriteLine("exit:\t\t\texits the program");
             System.Console.WriteLine("help:\t\t\tprints this help text");
-            System.Console.WriteLine("operation STRING:\tsends an operation to the database");
+            System.Console.WriteLine("help STRING:\t\tdisplays detailed help about the specified command");
+            System.Console.WriteLine("add STRING:\t\tadds a document to the database");
+            System.Console.WriteLine("query STRING:\t\tqueries the database with the supplied fields");
+            System.Console.WriteLine("remove STRING:\t\tremoves the specified document id from the database");
+            System.Console.WriteLine("update STRING:\t\tupdates a document to the database");
         }
 
-        /// <summary>
-        /// The operation command.
-        /// </summary>
-        /// <param name="command">The command data.</param>
-        private void CommandOperation(List<CommandPart> command)
+        private void CommandHelpDetailed(List<CommandPart> command)
         {
-            string op = ((CommandPartLiteral)command[1]).Value;
+            string helpCommand = ((CommandPartString)command[1]).Value;
 
-            Message message = new Message(_connectedDef, new DataOperation(op), true);
+            switch (helpCommand)
+            {
+                case "connect":
+                    System.Console.WriteLine("Connects to the supplied node. This is where all database operations will be sent to.");
+                    break;
+
+                case "disconnect":
+                    System.Console.WriteLine("Disconnects from the connected node.");
+                    break;
+
+                case "exit":
+                    System.Console.WriteLine("Exits the program.");
+                    break;
+
+                case "help":
+                    System.Console.WriteLine("Prints out the help text or the help text of a specified command.");
+                    break;
+
+                case "add":
+                    System.Console.WriteLine("Adds a document to the database. Supply the json of the document that you want to add. If an id is not supplied, one will be created and should a collision occur with the generated id, the operation will be retried with a new one until it succeeds or runs into a different error.");
+                    break;
+
+                case "query":
+                    System.Console.WriteLine("Queries the database. Supply a document that represents your query operation.");
+                    break;
+
+                case "remove":
+                    System.Console.WriteLine("Removes a document from the database. Supply the id of the document you want to be removed.");
+                    break;
+
+                case "update":
+                    System.Console.WriteLine("Updates a document in the database. Supply a document that represents your update operation.");
+                    break;
+
+                default:
+                    System.Console.WriteLine("Not a valid command.");
+                    break;
+            }
+        }
+
+        private void CommandQuery(List<CommandPart> command)
+        {
+            string op = ((CommandPartString)command[1]).Value;
+
+            Message message = new Message(_connectedDef, new DataOperation("{\"query\":{\"fields\":" + op + "}}"), true);
+            SendMessage(message);
+            message.BlockUntilDone();
+
+            System.Console.WriteLine(message.Success ? ((DataOperationResult)message.Response.Data).Result : "Message failure.");
+        }
+
+        private void CommandRemove(List<CommandPart> command)
+        {
+            string op = ((CommandPartString)command[1]).Value;
+
+            Message message = new Message(_connectedDef, new DataOperation("{\"remove\":{\"documentId\":\"" + op + "\"}}"), true);
+            SendMessage(message);
+            message.BlockUntilDone();
+
+            System.Console.WriteLine(message.Success ? ((DataOperationResult)message.Response.Data).Result : "Message failure.");
+        }
+
+        private void CommandUpdate(List<CommandPart> command)
+        {
+            string op = ((CommandPartString)command[1]).Value;
+
+            Message message = new Message(_connectedDef, new DataOperation("{\"update\":" + op + "}"), true);
             SendMessage(message);
             message.BlockUntilDone();
 

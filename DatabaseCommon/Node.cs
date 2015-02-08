@@ -568,6 +568,12 @@ namespace Database.Common
         {
             Message message = (Message)obj;
 
+            if (message.Address == null)
+            {
+                message.Status = MessageStatus.SendingFailure;
+                return;
+            }
+
             bool createConnection = false;
             _connectionsLock.EnterReadLock();
 

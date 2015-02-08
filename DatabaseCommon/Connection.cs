@@ -59,6 +59,7 @@ namespace Database.Common
         public void Disconnect()
         {
             Status = ConnectionStatus.Disconnected;
+            Client.Close();
         }
 
         /// <summary>

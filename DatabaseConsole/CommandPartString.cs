@@ -55,7 +55,7 @@
                     return false;
                 }
 
-                output = new CommandPartLiteral(text.Substring(1, endIndex - 1).Replace("\\\"", "\""));
+                output = new CommandPartString(text.Substring(1, endIndex - 1).Replace("\\\"", "\""));
                 text = text.Substring(endIndex + 1);
                 return true;
             }
@@ -75,7 +75,7 @@
             }
             else
             {
-                output = new CommandPartLiteral(text.Substring(0, endIndex));
+                output = new CommandPartString(text.Substring(0, endIndex));
                 text = text.Substring(endIndex);
             }
 
