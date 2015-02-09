@@ -9,7 +9,7 @@ namespace Database.Storage
     /// <summary>
     /// Represents a chunk of the database.
     /// </summary>
-    public class DatabaseChunk
+    public class DatabaseChunk : IComparable<DatabaseChunk>
     {
         /// <summary>
         /// The start of the chunk.
@@ -72,6 +72,17 @@ namespace Database.Storage
         public ChunkMarker Start
         {
             get { return _start; }
+        }
+
+        /// <inheritdoc />
+        public int CompareTo(DatabaseChunk other)
+        {
+            if (other == null)
+            {
+                return 1;
+            }
+
+            return _start.CompareTo(other._start);
         }
 
         /// <summary>

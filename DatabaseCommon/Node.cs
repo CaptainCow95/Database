@@ -161,6 +161,14 @@ namespace Database.Common
         }
 
         /// <summary>
+        /// Gets the thread pool used by the node.
+        /// </summary>
+        protected SmartThreadPool ThreadPool
+        {
+            get { return _threadPool; }
+        }
+
+        /// <summary>
         /// Gets a list of the connected nodes.
         /// </summary>
         /// <returns>A readonly list of the connected nodes.</returns>
@@ -319,7 +327,14 @@ namespace Database.Common
         /// <param name="message">The message that was received.</param>
         private void MessageReceivedHandler(object message)
         {
-            MessageReceived((Message)message);
+            try
+            {
+                MessageReceived((Message)message);
+            }
+            catch (Exception e)
+            {
+                Logger.Log(e.Message + "\nStack Trace: " + e.StackTrace, LogLevel.Error);
+            }
         }
 
         /// <summary>
@@ -501,12 +516,19 @@ namespace Database.Common
                             _messagesReceived.Add(connection.Key, new List<byte>());
                         }
 
-                        NetworkStream stream = connection.Value.Client.GetStream();
-                        while (stream.DataAvailable)
+                        try
                         {
-                            int bytesRead = stream.Read(messageBuffer, 0, MessageBufferSize);
-                            _messagesReceived[connection.Key].AddRange(messageBuffer.Take(bytesRead));
-                            connection.Value.ResetLastActiveTime();
+                            NetworkStream stream = connection.Value.Client.GetStream();
+                            while (stream.DataAvailable)
+                            {
+                                int bytesRead = stream.Read(messageBuffer, 0, MessageBufferSize);
+                                _messagesReceived[connection.Key].AddRange(messageBuffer.Take(bytesRead));
+                                connection.Value.ResetLastActiveTime();
+                            }
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            // The stream was closed, do nothing.
                         }
                     }
                 }

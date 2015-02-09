@@ -14,14 +14,14 @@ namespace Database.Storage
     public class StorageNode : Node
     {
         /// <summary>
+        /// The database of the node.
+        /// </summary>
+        private readonly Database _database;
+
+        /// <summary>
         /// A list of the controller nodes.
         /// </summary>
         private List<NodeDefinition> _controllerNodes;
-
-        /// <summary>
-        /// The database of the node.
-        /// </summary>
-        private Database _database;
 
         /// <summary>
         /// The settings of the storage node.
@@ -129,7 +129,7 @@ namespace Database.Storage
             if (message.Data is JoinAttempt)
             {
                 JoinAttempt attempt = (JoinAttempt)message.Data;
-                if (attempt.Type != NodeType.Query)
+                if (attempt.Type != NodeType.Query && attempt.Type != NodeType.Storage)
                 {
                     SendMessage(new Message(message, new JoinFailure("Only a query node can send a join attempt to a storage node."), false));
                 }
@@ -157,8 +157,13 @@ namespace Database.Storage
                 {
                     result = _database.ProcessOperation((DataOperation)message.Data);
                 }
-                catch
+                catch (ChunkMovedException)
                 {
+                    result = new DataOperationResult(ErrorCodes.ChunkMoved, "The chunk has been moved.");
+                }
+                catch (Exception e)
+                {
+                    Logger.Log(e.Message + "\nStackTrace:" + e.StackTrace, LogLevel.Error);
                     result = new DataOperationResult(ErrorCodes.FailedMessage, "An exception occurred while processing the operation.");
                 }
 
@@ -169,11 +174,81 @@ namespace Database.Storage
                 _database.Create();
                 SendMessage(new Message(message, new Acknowledgement(), false));
             }
+            else if (message.Data is ChunkTransfer)
+            {
+                var transfer = (ChunkTransfer)message.Data;
+                ThreadPool.QueueWorkItem(TransferChunk, transfer);
+            }
+            else if (message.Data is ChunkDataRequest)
+            {
+                _database.ProcessChunkDataRequest((ChunkDataRequest)message.Data, message);
+            }
         }
 
         /// <inheritdoc />
         protected override void PrimaryChanged()
         {
+        }
+
+        /// <summary>
+        /// Processes a chunk transfer.
+        /// </summary>
+        /// <param name="transfer">The chunk to transfer.</param>
+        private void TransferChunk(ChunkTransfer transfer)
+        {
+            Logger.Log("Attempting transfer of chunk " + transfer.Start + " - " + transfer.End + " from " + transfer.Node.ConnectionName, LogLevel.Info);
+            Message joinAttempt = new Message(transfer.Node, new JoinAttempt(NodeType.Storage, _settings.NodeName, _settings.Port, _settings.ConnectionString), true)
+            {
+                SendWithoutConfirmation = true
+            };
+            SendMessage(joinAttempt);
+            joinAttempt.BlockUntilDone();
+            if (!joinAttempt.Success)
+            {
+                Logger.Log("Failed to reach the storage node at " + transfer.Node.ConnectionName, LogLevel.Warning);
+                SendMessage(new Message(Primary, new ChunkTransferComplete(false), false));
+                return;
+            }
+
+            if (joinAttempt.Response.Data is JoinFailure)
+            {
+                Logger.Log("The storage node at " + transfer.Node.ConnectionName + " denied the join request in order to transfer a chunk.", LogLevel.Error);
+                SendMessage(new Message(Primary, new ChunkTransferComplete(false), false));
+                return;
+            }
+
+            Connections[transfer.Node].ConnectionEstablished(transfer.Node, NodeType.Storage);
+
+            Message request = new Message(transfer.Node, new ChunkDataRequest(transfer.Start, transfer.End), true);
+            SendMessage(request);
+            request.BlockUntilDone();
+            if (!request.Success)
+            {
+                Logger.Log("Failed to reach the storage node at " + transfer.Node.ConnectionName, LogLevel.Warning);
+                SendMessage(new Message(Primary, new ChunkTransferComplete(false), false));
+                return;
+            }
+
+            var response = (ChunkDataResponse)request.Response.Data;
+            _database.ProcessChunkDataResponse(transfer.Start, transfer.End, response.Data);
+            Message ack = new Message(request.Response, new Acknowledgement(), true);
+            SendMessage(ack);
+            ack.BlockUntilDone();
+            try
+            {
+                Connections[transfer.Node].Disconnect();
+                while (Connections.Any(e => Equals(e.Key, transfer.Node)))
+                {
+                    Thread.Sleep(10);
+                }
+            }
+            catch
+            {
+                // Probably disconnected in the meantime, don't worry about it.
+            }
+
+            SendMessage(new Message(Primary, new ChunkTransferComplete(true), false));
+            Logger.Log("Chunk transfer complete.", LogLevel.Info);
         }
 
         /// <summary>

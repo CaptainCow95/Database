@@ -21,6 +21,9 @@ namespace Database.Console
         /// </summary>
         private NodeDefinition _connectedDef;
 
+        /// <summary>
+        /// A value indicating whether the console is running.
+        /// </summary>
         private bool _consoleRunning;
 
         /// <inheritdoc />
@@ -80,6 +83,10 @@ namespace Database.Console
             throw new NotImplementedException();
         }
 
+        /// <summary>
+        /// The add command.
+        /// </summary>
+        /// <param name="command">The command data.</param>
         private void CommandAdd(List<CommandPart> command)
         {
             Document op = new Document(((CommandPartString)command[1]).Value);
@@ -193,6 +200,10 @@ namespace Database.Console
             _connectedDef = null;
         }
 
+        /// <summary>
+        /// The exit command.
+        /// </summary>
+        /// <param name="command">The command data.</param>
         private void CommandExit(List<CommandPart> command)
         {
             _consoleRunning = false;
@@ -215,6 +226,10 @@ namespace Database.Console
             System.Console.WriteLine("update STRING:\t\tupdates a document to the database");
         }
 
+        /// <summary>
+        /// The detailed help command.
+        /// </summary>
+        /// <param name="command">The command data.</param>
         private void CommandHelpDetailed(List<CommandPart> command)
         {
             string helpCommand = ((CommandPartString)command[1]).Value;
@@ -259,6 +274,10 @@ namespace Database.Console
             }
         }
 
+        /// <summary>
+        /// The query command.
+        /// </summary>
+        /// <param name="command">The command data.</param>
         private void CommandQuery(List<CommandPart> command)
         {
             string op = ((CommandPartString)command[1]).Value;
@@ -270,6 +289,10 @@ namespace Database.Console
             System.Console.WriteLine(message.Success ? ((DataOperationResult)message.Response.Data).Result : "Message failure.");
         }
 
+        /// <summary>
+        /// The remove command.
+        /// </summary>
+        /// <param name="command">The command data.</param>
         private void CommandRemove(List<CommandPart> command)
         {
             string op = ((CommandPartString)command[1]).Value;
@@ -281,6 +304,10 @@ namespace Database.Console
             System.Console.WriteLine(message.Success ? ((DataOperationResult)message.Response.Data).Result : "Message failure.");
         }
 
+        /// <summary>
+        /// The update command.
+        /// </summary>
+        /// <param name="command">The command data.</param>
         private void CommandUpdate(List<CommandPart> command)
         {
             string op = ((CommandPartString)command[1]).Value;

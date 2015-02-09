@@ -71,6 +71,12 @@
     <Compile Include="Logger.cs" />
     <Compile Include="LogLevel.cs" />
     <Compile Include="Messages\Acknowledgement.cs" />
+    <Compile Include="Messages\ChunkDataRequest.cs" />
+    <Compile Include="Messages\ChunkDataResponse.cs" />
+    <Compile Include="Messages\ChunkManagementRequest.cs" />
+    <Compile Include="Messages\ChunkManagementResponse.cs" />
+    <Compile Include="Messages\ChunkTransfer.cs" />
+    <Compile Include="Messages\ChunkTransferComplete.cs" />
     <Compile Include="Messages\DatabaseCreate.cs" />
     <Compile Include="Messages\ChunkMerge.cs" />
     <Compile Include="Messages\ChunkSplit.cs" />

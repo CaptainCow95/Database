@@ -88,6 +88,36 @@
         /// <summary>
         /// A <see cref="DatabaseCreate"/> message.
         /// </summary>
-        DatabaseCreate = 16
+        DatabaseCreate = 16,
+
+        /// <summary>
+        /// A <see cref="ChunkManagementRequest"/> message.
+        /// </summary>
+        ChunkManagementRequest = 17,
+
+        /// <summary>
+        /// A <see cref="ChunkManagementResponse"/> message.
+        /// </summary>
+        ChunkManagementResponse = 18,
+
+        /// <summary>
+        /// A <see cref="ChunkTransfer"/> message.
+        /// </summary>
+        ChunkTransfer = 19,
+
+        /// <summary>
+        /// A <see cref="ChunkTransferComplete"/> message.
+        /// </summary>
+        ChunkTransferComplete = 20,
+
+        /// <summary>
+        /// A <see cref="ChunkDataRequest"/> message.
+        /// </summary>
+        ChunkDataRequest = 21,
+
+        /// <summary>
+        /// A <see cref="ChunkDataResponse"/> message.
+        /// </summary>
+        ChunkDataResponse = 22
     }
 }

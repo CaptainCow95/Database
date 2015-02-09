@@ -70,6 +70,24 @@ namespace Database.Common.Messages
                 case MessageType.DatabaseCreate:
                     return new DatabaseCreate();
 
+                case MessageType.ChunkManagementRequest:
+                    return new ChunkManagementRequest();
+
+                case MessageType.ChunkManagementResponse:
+                    return new ChunkManagementResponse(data, index);
+
+                case MessageType.ChunkTransfer:
+                    return new ChunkTransfer(data, index);
+
+                case MessageType.ChunkTransferComplete:
+                    return new ChunkTransferComplete(data, index);
+
+                case MessageType.ChunkDataRequest:
+                    return new ChunkDataRequest(data, index);
+
+                case MessageType.ChunkDataResponse:
+                    return new ChunkDataResponse(data, index);
+
                 default:
                     throw new Exception("Message type id not found: " + messageTypeIdConverted);
             }

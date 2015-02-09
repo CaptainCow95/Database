@@ -23,6 +23,11 @@
         /// <summary>
         /// The operation contained an invalid id.
         /// </summary>
-        InvalidId
+        InvalidId,
+
+        /// <summary>
+        /// The chunk was moved since the operation was issued.
+        /// </summary>
+        ChunkMoved
     }
 }

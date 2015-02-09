@@ -3,44 +3,44 @@
 namespace Database.Common.Messages
 {
     /// <summary>
-    /// Represents two chunks that have just been merged.
+    /// Sent as a request for the data contained in the specified chunk.
     /// </summary>
-    public class ChunkMerge : BaseMessageData
+    public class ChunkDataRequest : BaseMessageData
     {
         /// <summary>
-        /// The chunk's end marker.
+        /// The end of the chunk.
         /// </summary>
         private readonly ChunkMarker _end;
 
         /// <summary>
-        /// The chunk's start marker.
+        /// The start of the chunk.
         /// </summary>
         private readonly ChunkMarker _start;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ChunkMerge"/> class.
+        /// Initializes a new instance of the <see cref="ChunkDataRequest"/> class.
         /// </summary>
-        /// <param name="start">The chunk's start marker.</param>
-        /// <param name="end">The chunk's end marker.</param>
-        public ChunkMerge(ChunkMarker start, ChunkMarker end)
+        /// <param name="start">The start of the chunk.</param>
+        /// <param name="end">The end of the chunk.</param>
+        public ChunkDataRequest(ChunkMarker start, ChunkMarker end)
         {
             _start = start;
             _end = end;
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ChunkMerge"/> class.
+        /// Initializes a new instance of the <see cref="ChunkDataRequest"/> class.
         /// </summary>
         /// <param name="data">The data to read from.</param>
         /// <param name="index">The index at which to start reading from.</param>
-        public ChunkMerge(byte[] data, int index)
+        public ChunkDataRequest(byte[] data, int index)
         {
             _start = ChunkMarker.ConvertFromString(ByteArrayHelper.ToString(data, ref index));
             _end = ChunkMarker.ConvertFromString(ByteArrayHelper.ToString(data, ref index));
         }
 
         /// <summary>
-        /// Gets the chunk's end marker.
+        /// Gets the end of the chunk.
         /// </summary>
         public ChunkMarker End
         {
@@ -48,7 +48,7 @@ namespace Database.Common.Messages
         }
 
         /// <summary>
-        /// Gets the chunk's start marker.
+        /// Gets the start of the chunk.
         /// </summary>
         public ChunkMarker Start
         {
@@ -66,7 +66,7 @@ namespace Database.Common.Messages
         /// <inheritdoc />
         protected override int GetMessageTypeId()
         {
-            return (int)MessageType.ChunkMerge;
+            return (int)MessageType.ChunkDataRequest;
         }
     }
 }

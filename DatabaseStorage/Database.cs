@@ -2,6 +2,7 @@
 using Database.Common.DataOperation;
 using Database.Common.Messages;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -29,6 +30,11 @@ namespace Database.Storage
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
 
         /// <summary>
+        /// The storage node to send messages to.
+        /// </summary>
+        private readonly StorageNode _node;
+
+        /// <summary>
         /// A value indicating whether to check for a merge during the next maintenance run.
         /// </summary>
         private volatile bool _checkForMerge = false;
@@ -42,11 +48,6 @@ namespace Database.Storage
         /// The maximum number of items per chunk before a split occurs.
         /// </summary>
         private int _maxChunkItemCount = ControllerNodeSettings.MaxChunkItemCountDefault;
-
-        /// <summary>
-        /// The storage node to send messages to.
-        /// </summary>
-        private StorageNode _node;
 
         /// <summary>
         /// A value indicating whether the maintenance thread is running.
@@ -77,6 +78,74 @@ namespace Database.Storage
             }
 
             _lock.ExitWriteLock();
+        }
+
+        /// <summary>
+        /// Processes a <see cref="ChunkDataRequest"/> message.
+        /// </summary>
+        /// <param name="request">The request's data.</param>
+        /// <param name="requestMessage">The original message.</param>
+        public void ProcessChunkDataRequest(ChunkDataRequest request, Message requestMessage)
+        {
+            Logger.Log("Fulfilling chunk move request.", LogLevel.Info);
+            _lock.EnterWriteLock();
+
+            Stopwatch timer = new Stopwatch();
+            timer.Start();
+            Document data = new Document();
+            var chunk = _chunks.Find(e => Equals(e.Start, request.Start) && Equals(e.End, request.End));
+            var documents = chunk.Query(new List<QueryItem>());
+            for (int i = 0; i < documents.Count; ++i)
+            {
+                data[i.ToString()] = new DocumentEntry(i.ToString(), DocumentEntryType.Document, documents[i]);
+            }
+
+            data["count"] = new DocumentEntry("count", DocumentEntryType.Integer, documents.Count);
+            timer.Stop();
+            Logger.Log("Chunk data retrieved in " + timer.Elapsed.TotalSeconds + " seconds.", LogLevel.Info);
+            Message response = new Message(requestMessage, new ChunkDataResponse(data), true);
+            _node.SendDatabaseMessage(response);
+            response.BlockUntilDone();
+            if (response.Success)
+            {
+                _node.SendDatabaseMessage(new Message(response.Response, new Acknowledgement(), false));
+                _chunks.Remove(chunk);
+                Logger.Log("Chunk move request succeeded.", LogLevel.Info);
+            }
+            else
+            {
+                Logger.Log("Chunk move request failed.", LogLevel.Info);
+            }
+
+            _lock.ExitWriteLock();
+        }
+
+        /// <summary>
+        /// Processes a <see cref="ChunkDataResponse"/> message.
+        /// </summary>
+        /// <param name="start">The start of the chunk.</param>
+        /// <param name="end">The end of the chunk.</param>
+        /// <param name="data">The data that is contained in that chunk.</param>
+        public void ProcessChunkDataResponse(ChunkMarker start, ChunkMarker end, Document data)
+        {
+            Stopwatch timer = new Stopwatch();
+            timer.Start();
+            DatabaseChunk chunk = new DatabaseChunk(start, end);
+            for (int i = 0; i < data["count"].ValueAsInteger; ++i)
+            {
+                var doc = data[i.ToString()].ValueAsDocument;
+                chunk.TryAdd(new ObjectId(doc["id"].ValueAsString), doc);
+            }
+
+            timer.Stop();
+
+            _lock.EnterWriteLock();
+
+            _chunks.Add(chunk);
+            _chunks.Sort();
+
+            _lock.ExitWriteLock();
+            Logger.Log("Chunk data added in " + timer.Elapsed.TotalSeconds + " seconds.", LogLevel.Info);
         }
 
         /// <summary>
@@ -166,7 +235,14 @@ namespace Database.Storage
         /// <returns>The chunk the specified id belongs in.</returns>
         private DatabaseChunk GetChunk(ObjectId id)
         {
-            return _chunks.Single(e => ChunkMarker.IsBetween(e.Start, e.End, id.ToString()));
+            var value = _chunks.SingleOrDefault(e => ChunkMarker.IsBetween(e.Start, e.End, id.ToString()));
+            if (value == null)
+            {
+                _lock.ExitReadLock();
+                throw new ChunkMovedException();
+            }
+
+            return value;
         }
 
         /// <summary>
@@ -334,17 +410,30 @@ namespace Database.Storage
 
                     for (int i = 0; i < _chunks.Count - 1; ++i)
                     {
-                        if (_chunks[i].Count + _chunks[i + 1].Count < _maxChunkItemCount / 2)
+                        if (_chunks[i].Count + _chunks[i + 1].Count < _maxChunkItemCount / 2 && Equals(_chunks[i].End, _chunks[i + 1].Start))
                         {
                             _checkForMerge = true;
-                            _lock.EnterWriteLock();
 
-                            // Merging two chunks, do the merge and then alert the primary controller before doing anything else.
-                            _chunks[i].Merge(_chunks[i + 1]);
-                            _chunks.RemoveAt(i + 1);
-                            message = new ChunkMerge(_chunks[i].Start, _chunks[i].End);
+                            if (_node.Primary == null)
+                            {
+                                break;
+                            }
 
-                            _lock.ExitWriteLock();
+                            Message canMerge = new Message(_node.Primary, new ChunkManagementRequest(), true);
+                            _node.SendDatabaseMessage(canMerge);
+                            canMerge.BlockUntilDone();
+                            if (canMerge.Success && ((ChunkManagementResponse)canMerge.Response.Data).Result)
+                            {
+                                _lock.EnterWriteLock();
+
+                                // Merging two chunks, do the merge and then alert the primary controller before doing anything else.
+                                _chunks[i].Merge(_chunks[i + 1]);
+                                _chunks.RemoveAt(i + 1);
+                                message = new ChunkMerge(_chunks[i].Start, _chunks[i].End);
+
+                                _lock.ExitWriteLock();
+                            }
+
                             break;
                         }
                     }
@@ -363,13 +452,25 @@ namespace Database.Storage
                         if (_chunks[i].Count > _maxChunkItemCount)
                         {
                             _checkForSplit = true;
-                            _lock.EnterWriteLock();
+                            if (_node.Primary == null)
+                            {
+                                break;
+                            }
 
-                            // Spliting a chunk, do the split and then alert the primary controller before doing anything else.
-                            _chunks.Insert(i + 1, _chunks[i].Split());
-                            message = new ChunkSplit(_chunks[i].Start, _chunks[i].End, _chunks[i + 1].Start, _chunks[i + 1].End);
+                            Message canSplit = new Message(_node.Primary, new ChunkManagementRequest(), true);
+                            _node.SendDatabaseMessage(canSplit);
+                            canSplit.BlockUntilDone();
+                            if (canSplit.Success && ((ChunkManagementResponse)canSplit.Response.Data).Result)
+                            {
+                                _lock.EnterWriteLock();
 
-                            _lock.ExitWriteLock();
+                                // Spliting a chunk, do the split and then alert the primary controller before doing anything else.
+                                _chunks.Insert(i + 1, _chunks[i].Split());
+                                message = new ChunkSplit(_chunks[i].Start, _chunks[i].End, _chunks[i + 1].Start, _chunks[i + 1].End);
+
+                                _lock.ExitWriteLock();
+                            }
+
                             break;
                         }
                     }

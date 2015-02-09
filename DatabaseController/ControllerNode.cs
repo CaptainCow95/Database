@@ -14,9 +14,34 @@ namespace Database.Controller
     public class ControllerNode : Node
     {
         /// <summary>
+        /// The time between maintenance runs.
+        /// </summary>
+        private const int MaintenanceRunTime = 60;
+
+        /// <summary>
+        /// The lock object to use when balancing.
+        /// </summary>
+        private readonly object _balancingLockObject = new object();
+
+        /// <summary>
         /// The list of where the various database chunks are located.
         /// </summary>
-        private List<ChunkDefinition> _chunkList = new List<ChunkDefinition>();
+        private readonly List<ChunkDefinition> _chunkList = new List<ChunkDefinition>();
+
+        /// <summary>
+        /// A list of the connected storage nodes.
+        /// </summary>
+        private readonly List<NodeDefinition> _storageNodes = new List<NodeDefinition>();
+
+        /// <summary>
+        /// The current balancing state.
+        /// </summary>
+        private volatile BalancingState _balancing = BalancingState.None;
+
+        /// <summary>
+        /// The chunk that is currently being transferred.
+        /// </summary>
+        private ChunkDefinition _chunkBeingTransfered = null;
 
         /// <summary>
         /// A list of the controller nodes contained in the connection string.
@@ -29,6 +54,26 @@ namespace Database.Controller
         private uint _lastPrimaryMessageId = 0;
 
         /// <summary>
+        /// The maintenance thread.
+        /// </summary>
+        private Thread _maintenanceThread;
+
+        /// <summary>
+        /// The node that is currently managing a chunk.
+        /// </summary>
+        private NodeDefinition _nodeManagingChunk = null;
+
+        /// <summary>
+        /// The node that is currently transferring a chunk.
+        /// </summary>
+        private NodeDefinition _nodeTransferingChunk = null;
+
+        /// <summary>
+        /// The thread that handles reconnecting to other controller nodes.
+        /// </summary>
+        private Thread _reconnectionThread;
+
+        /// <summary>
         /// The <see cref="NodeDefinition"/> that defines this node.
         /// </summary>
         private NodeDefinition _self;
@@ -39,11 +84,6 @@ namespace Database.Controller
         private ControllerNodeSettings _settings;
 
         /// <summary>
-        /// The thread that handles reconnecting to other controller nodes.
-        /// </summary>
-        private Thread _updateThread;
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="ControllerNode"/> class.
         /// </summary>
         /// <param name="settings">The settings to use.</param>
@@ -51,6 +91,27 @@ namespace Database.Controller
             : base(settings.Port)
         {
             _settings = settings;
+        }
+
+        /// <summary>
+        /// The different balance states of the controller.
+        /// </summary>
+        private enum BalancingState
+        {
+            /// <summary>
+            /// The controller is currently doing nothing.
+            /// </summary>
+            None,
+
+            /// <summary>
+            /// The controller is currently balancing the chunks.
+            /// </summary>
+            Balancing,
+
+            /// <summary>
+            /// The controller is currently splitting or merging a chunk.
+            /// </summary>
+            ChunkManagement
         }
 
         /// <inheritdoc />
@@ -112,8 +173,11 @@ namespace Database.Controller
                 Primary = Self;
             }
 
-            _updateThread = new Thread(UpdateThreadRun);
-            _updateThread.Start();
+            _reconnectionThread = new Thread(ReconnectionThreadRun);
+            _reconnectionThread.Start();
+
+            _maintenanceThread = new Thread(MaintenanceThreadRun);
+            _maintenanceThread.Start();
 
             while (Running)
             {
@@ -146,9 +210,31 @@ namespace Database.Controller
             }
             else if (type == NodeType.Storage)
             {
+                lock (_storageNodes)
+                {
+                    _storageNodes.Remove(node);
+                }
+
                 lock (_chunkList)
                 {
                     _chunkList.RemoveAll(e => Equals(e.Node, node));
+                }
+
+                lock (_balancingLockObject)
+                {
+                    if (Equals(node, _nodeManagingChunk))
+                    {
+                        _balancing = BalancingState.None;
+                        _nodeManagingChunk = null;
+                    }
+
+                    if (Equals(node, _nodeTransferingChunk))
+                    {
+                        _balancing = BalancingState.None;
+                        _nodeTransferingChunk = null;
+                        _chunkBeingTransfered = null;
+                        Logger.Log("Chunk transfer failed.", LogLevel.Info);
+                    }
                 }
             }
         }
@@ -246,7 +332,8 @@ namespace Database.Controller
             {
                 lock (_chunkList)
                 {
-                    _chunkList = ((ChunkListUpdate)message.Data).ChunkList;
+                    _chunkList.Clear();
+                    _chunkList.AddRange(((ChunkListUpdate)message.Data).ChunkList);
                 }
             }
             else if (message.Data is ChunkSplit)
@@ -260,6 +347,15 @@ namespace Database.Controller
                 }
 
                 SendMessage(new Message(message, new Acknowledgement(), false));
+
+                lock (_balancingLockObject)
+                {
+                    _balancing = BalancingState.None;
+                    _nodeManagingChunk = null;
+
+                    Logger.Log("Committing chunk split.", LogLevel.Debug);
+                }
+
                 SendChunkList();
             }
             else if (message.Data is ChunkMerge)
@@ -273,7 +369,59 @@ namespace Database.Controller
                 }
 
                 SendMessage(new Message(message, new Acknowledgement(), false));
+
+                lock (_balancingLockObject)
+                {
+                    _balancing = BalancingState.None;
+                    _nodeManagingChunk = null;
+
+                    Logger.Log("Committing chunk merge.", LogLevel.Debug);
+                }
+
                 SendChunkList();
+            }
+            else if (message.Data is ChunkManagementRequest)
+            {
+                bool success = false;
+                lock (_balancingLockObject)
+                {
+                    if (_balancing == BalancingState.None)
+                    {
+                        _balancing = BalancingState.ChunkManagement;
+                        success = true;
+                        _nodeManagingChunk = message.Address;
+
+                        Logger.Log("Granting chunk management request.", LogLevel.Debug);
+                    }
+                }
+
+                SendMessage(new Message(message, new ChunkManagementResponse(success), false));
+            }
+            else if (message.Data is ChunkTransferComplete)
+            {
+                if (((ChunkTransferComplete)message.Data).Success)
+                {
+                    lock (_chunkList)
+                    {
+                        int index = _chunkList.IndexOf(_chunkBeingTransfered);
+                        _chunkList[index] = new ChunkDefinition(_chunkBeingTransfered.Start, _chunkBeingTransfered.End, message.Address);
+                    }
+
+                    Logger.Log("Chunk transfer completed successfully.", LogLevel.Info);
+                    SendChunkList();
+                    BalanceChunks();
+                }
+                else
+                {
+                    Logger.Log("Chunk transfer failed.", LogLevel.Info);
+
+                    lock (_balancingLockObject)
+                    {
+                        _nodeTransferingChunk = null;
+                        _chunkBeingTransfered = null;
+                        _balancing = BalancingState.None;
+                    }
+                }
             }
         }
 
@@ -281,6 +429,72 @@ namespace Database.Controller
         protected override void PrimaryChanged()
         {
             _lastPrimaryMessageId = 0;
+        }
+
+        /// <summary>
+        /// Balances the chunks on the storage nodes.
+        /// </summary>
+        private void BalanceChunks()
+        {
+            SortedList<NodeDefinition, int> chunksPerNode = new SortedList<NodeDefinition, int>();
+            lock (_chunkList)
+            {
+                if (_chunkList.Count == 0)
+                {
+                    lock (_balancingLockObject)
+                    {
+                        _nodeTransferingChunk = null;
+                        _chunkBeingTransfered = null;
+                        _balancing = BalancingState.None;
+                        return;
+                    }
+                }
+
+                foreach (var item in _chunkList)
+                {
+                    if (!chunksPerNode.ContainsKey(item.Node))
+                    {
+                        chunksPerNode.Add(item.Node, 1);
+                    }
+                    else
+                    {
+                        chunksPerNode[item.Node]++;
+                    }
+                }
+
+                lock (_storageNodes)
+                {
+                    foreach (var item in _storageNodes)
+                    {
+                        if (!chunksPerNode.ContainsKey(item))
+                        {
+                            chunksPerNode.Add(item, 0);
+                        }
+                    }
+                }
+
+                if (chunksPerNode.Max(e => e.Value) - chunksPerNode.Min(e => e.Value) > 2)
+                {
+                    var minNode = chunksPerNode.First(e => e.Value == chunksPerNode.Min(f => f.Value)).Key;
+                    var maxNode = chunksPerNode.First(e => e.Value == chunksPerNode.Max(f => f.Value)).Key;
+                    Random rand = new Random();
+                    var possibleChunks = _chunkList.Where(e => Equals(e.Node, maxNode)).ToList();
+                    var chunk = possibleChunks[rand.Next(possibleChunks.Count)];
+                    _nodeTransferingChunk = minNode;
+                    _chunkBeingTransfered = chunk;
+                    Logger.Log("Starting chunk transfer.", LogLevel.Info);
+                    SendMessage(new Message(minNode, new ChunkTransfer(maxNode, chunk.Start, chunk.End), false));
+                }
+                else
+                {
+                    lock (_balancingLockObject)
+                    {
+                        _nodeTransferingChunk = null;
+                        _chunkBeingTransfered = null;
+                        _balancing = BalancingState.None;
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -441,6 +655,11 @@ namespace Database.Controller
 
                         if (response.Success)
                         {
+                            lock (_storageNodes)
+                            {
+                                _storageNodes.Add(nodeDef);
+                            }
+
                             SendStorageNodeConnectionMessage();
 
                             bool updatedChunkList = false;
@@ -585,6 +804,132 @@ namespace Database.Controller
         }
 
         /// <summary>
+        /// The run method for the maintenance thread.
+        /// </summary>
+        private void MaintenanceThreadRun()
+        {
+            for (int i = 0; i < MaintenanceRunTime && Running; ++i)
+            {
+                Thread.Sleep(1000);
+            }
+
+            while (Running)
+            {
+                bool balance = false;
+                if (Equals(Primary, Self))
+                {
+                    // Only balance if you are the primary controller.
+                    lock (_balancingLockObject)
+                    {
+                        if (_balancing == BalancingState.None)
+                        {
+                            _balancing = BalancingState.Balancing;
+                            balance = true;
+                        }
+                    }
+                }
+
+                int difference = 0;
+                if (balance)
+                {
+                    lock (_chunkList)
+                    {
+                        if (_chunkList.Count > 0)
+                        {
+                            SortedList<NodeDefinition, int> chunksPerNode = new SortedList<NodeDefinition, int>();
+                            foreach (var item in _chunkList)
+                            {
+                                if (!chunksPerNode.ContainsKey(item.Node))
+                                {
+                                    chunksPerNode.Add(item.Node, 1);
+                                }
+                                else
+                                {
+                                    chunksPerNode[item.Node]++;
+                                }
+                            }
+
+                            lock (_storageNodes)
+                            {
+                                foreach (var item in _storageNodes)
+                                {
+                                    if (!chunksPerNode.ContainsKey(item))
+                                    {
+                                        chunksPerNode.Add(item, 0);
+                                    }
+                                }
+                            }
+
+                            difference = chunksPerNode.Max(e => e.Value) - chunksPerNode.Min(e => e.Value);
+                        }
+                    }
+                }
+
+                if (balance && difference >= 5)
+                {
+                    BalanceChunks();
+                }
+                else
+                {
+                    _balancing = BalancingState.None;
+                }
+
+                for (int i = 0; i < MaintenanceRunTime && Running; ++i)
+                {
+                    Thread.Sleep(1000);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Runs the thread that handles reconnecting to the other controllers.
+        /// </summary>
+        private void ReconnectionThreadRun()
+        {
+            Random rand = new Random();
+
+            int timeToWait = rand.Next(30, 120);
+            int i = 0;
+            while (i < timeToWait && Running)
+            {
+                Thread.Sleep(1000);
+                ++i;
+            }
+
+            while (Running)
+            {
+                timeToWait = rand.Next(30, 120);
+                i = 0;
+                while (i < timeToWait && Running)
+                {
+                    Thread.Sleep(1000);
+                    ++i;
+                }
+
+                var connections = GetConnectedNodes();
+                foreach (var def in _controllerNodes)
+                {
+                    if (Equals(def, Self))
+                    {
+                        continue;
+                    }
+
+                    if (!connections.Any(e => Equals(e.Item1, def)))
+                    {
+                        Logger.Log("Attempting to reconnect to " + def.ConnectionName, LogLevel.Info);
+                        ConnectToController(def);
+                    }
+                }
+
+                if (Primary == null)
+                {
+                    Logger.Log("Initiating voting.", LogLevel.Info);
+                    InitiateVoting();
+                }
+            }
+        }
+
+        /// <summary>
         /// Sends a <see cref="ChunkListUpdate"/> message to all connected nodes.
         /// </summary>
         private void SendChunkList()
@@ -594,10 +939,9 @@ namespace Database.Controller
                 return;
             }
 
-            ChunkListUpdate update;
             lock (_chunkList)
             {
-                update = new ChunkListUpdate(_chunkList);
+                var update = new ChunkListUpdate(_chunkList);
 
                 foreach (var node in GetConnectedNodes().Where(e => e.Item2 == NodeType.Controller || e.Item2 == NodeType.Query))
                 {
@@ -650,54 +994,6 @@ namespace Database.Controller
                 if (item.Item2 == NodeType.Query)
                 {
                     SendMessage(new Message(item.Item1, data, false));
-                }
-            }
-        }
-
-        /// <summary>
-        /// Runs the thread that handles reconnecting to the other controllers.
-        /// </summary>
-        private void UpdateThreadRun()
-        {
-            Random rand = new Random();
-
-            int timeToWait = rand.Next(30, 120);
-            int i = 0;
-            while (i < timeToWait && Running)
-            {
-                Thread.Sleep(1000);
-                ++i;
-            }
-
-            while (Running)
-            {
-                timeToWait = rand.Next(30, 120);
-                i = 0;
-                while (i < timeToWait && Running)
-                {
-                    Thread.Sleep(1000);
-                    ++i;
-                }
-
-                var connections = GetConnectedNodes();
-                foreach (var def in _controllerNodes)
-                {
-                    if (Equals(def, Self))
-                    {
-                        continue;
-                    }
-
-                    if (!connections.Any(e => Equals(e.Item1, def)))
-                    {
-                        Logger.Log("Attempting to reconnect to " + def.ConnectionName, LogLevel.Info);
-                        ConnectToController(def);
-                    }
-                }
-
-                if (Primary == null)
-                {
-                    Logger.Log("Initiating voting.", LogLevel.Info);
-                    InitiateVoting();
                 }
             }
         }

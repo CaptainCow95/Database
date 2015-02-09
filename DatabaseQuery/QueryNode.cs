@@ -14,19 +14,19 @@ namespace Database.Query
     public class QueryNode : Node
     {
         /// <summary>
-        /// The list of chunks known by the database.
-        /// </summary>
-        private List<ChunkDefinition> _chunkList = new List<ChunkDefinition>();
-
-        /// <summary>
         /// The lock to use when accessing the chunk list.
         /// </summary>
-        private ReaderWriterLockSlim _chunkListLock = new ReaderWriterLockSlim();
+        private readonly ReaderWriterLockSlim _chunkListLock = new ReaderWriterLockSlim();
 
         /// <summary>
         /// A list of the connected storage nodes.
         /// </summary>
-        private List<NodeDefinition> _connectedStorageNodes = new List<NodeDefinition>();
+        private readonly List<NodeDefinition> _connectedStorageNodes = new List<NodeDefinition>();
+
+        /// <summary>
+        /// The list of chunks known by the database.
+        /// </summary>
+        private List<ChunkDefinition> _chunkList = new List<ChunkDefinition>();
 
         /// <summary>
         /// A list of the controller nodes.
@@ -152,7 +152,8 @@ namespace Database.Query
             {
                 lock (_connectedStorageNodes)
                 {
-                    _connectedStorageNodes = ((NodeList)message.Data).Nodes.Select(e => new NodeDefinition(e.Split(':')[0], int.Parse(e.Split(':')[1]))).ToList();
+                    _connectedStorageNodes.Clear();
+                    _connectedStorageNodes.AddRange(((NodeList)message.Data).Nodes.Select(e => new NodeDefinition(e.Split(':')[0], int.Parse(e.Split(':')[1]))));
 
                     var connections = GetConnectedNodes();
                     foreach (var item in _connectedStorageNodes)
@@ -222,6 +223,7 @@ namespace Database.Query
         /// Processes an add operation.
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
+        /// <param name="op">The original <see cref="DataOperation"/> message.</param>
         /// <returns>The result of the operation.</returns>
         private DataOperationResult ProcessAddOperation(Document dataOperation, DataOperation op)
         {
@@ -247,7 +249,14 @@ namespace Database.Query
             operationMessage.BlockUntilDone();
             if (operationMessage.Success)
             {
-                return (DataOperationResult)operationMessage.Response.Data;
+                DataOperationResult result = (DataOperationResult)operationMessage.Response.Data;
+                Document resultDocument = new Document(result.Result);
+                if (!resultDocument["success"].ValueAsBoolean && (ErrorCodes)Enum.Parse(typeof(ErrorCodes), resultDocument["errorcode"].ValueAsString) == ErrorCodes.ChunkMoved)
+                {
+                    return ProcessAddOperation(dataOperation, op);
+                }
+
+                return result;
             }
 
             return new DataOperationResult(ErrorCodes.FailedMessage, "Failed to send message to storage node.");
@@ -257,6 +266,7 @@ namespace Database.Query
         /// Processes a data operation.
         /// </summary>
         /// <param name="dataOperation">The data operation to process.</param>
+        /// <param name="op">The original <see cref="DataOperation"/> message.</param>
         /// <returns>The result of the operation.</returns>
         private DataOperationResult ProcessDataOperation(Document dataOperation, DataOperation op)
         {
@@ -287,6 +297,7 @@ namespace Database.Query
         /// Processes a query operation.
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
+        /// <param name="op">The original <see cref="DataOperation"/> message.</param>
         /// <returns>The result of the operation.</returns>
         private DataOperationResult ProcessQueryOperation(Document dataOperation, DataOperation op)
         {
@@ -320,7 +331,10 @@ namespace Database.Query
                     }
                     else
                     {
-                        return new DataOperationResult((DataOperationResult)result.Response.Data);
+                        if ((ErrorCodes)Enum.Parse(typeof(ErrorCodes), doc["errorcode"].ValueAsString) != ErrorCodes.ChunkMoved)
+                        {
+                            return new DataOperationResult((DataOperationResult)result.Response.Data);
+                        }
                     }
                 }
                 else
@@ -342,6 +356,7 @@ namespace Database.Query
         /// Processes a remove operation.
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
+        /// <param name="op">The original <see cref="DataOperation"/> message.</param>
         /// <returns>The result of the operation.</returns>
         private DataOperationResult ProcessRemoveOperation(Document dataOperation, DataOperation op)
         {
@@ -367,7 +382,14 @@ namespace Database.Query
             operationMessage.BlockUntilDone();
             if (operationMessage.Success)
             {
-                return (DataOperationResult)operationMessage.Response.Data;
+                DataOperationResult result = (DataOperationResult)operationMessage.Response.Data;
+                Document resultDocument = new Document(result.Result);
+                if (!resultDocument["success"].ValueAsBoolean && (ErrorCodes)Enum.Parse(typeof(ErrorCodes), resultDocument["errorcode"].ValueAsString) == ErrorCodes.ChunkMoved)
+                {
+                    return ProcessRemoveOperation(dataOperation, op);
+                }
+
+                return result;
             }
 
             return new DataOperationResult(ErrorCodes.FailedMessage, "Failed to send message to storage node.");
@@ -377,6 +399,7 @@ namespace Database.Query
         /// Processes an update operation.
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
+        /// <param name="op">The original <see cref="DataOperation"/> message.</param>
         /// <returns>The result of the operation.</returns>
         private DataOperationResult ProcessUpdateOperation(Document dataOperation, DataOperation op)
         {
@@ -402,7 +425,14 @@ namespace Database.Query
             operationMessage.BlockUntilDone();
             if (operationMessage.Success)
             {
-                return (DataOperationResult)operationMessage.Response.Data;
+                DataOperationResult result = (DataOperationResult)operationMessage.Response.Data;
+                Document resultDocument = new Document(result.Result);
+                if (!resultDocument["success"].ValueAsBoolean && (ErrorCodes)Enum.Parse(typeof(ErrorCodes), resultDocument["errorcode"].ValueAsString) == ErrorCodes.ChunkMoved)
+                {
+                    return ProcessUpdateOperation(dataOperation, op);
+                }
+
+                return result;
             }
 
             return new DataOperationResult(ErrorCodes.FailedMessage, "Failed to send message to storage node.");

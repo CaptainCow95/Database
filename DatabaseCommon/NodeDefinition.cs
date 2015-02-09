@@ -8,7 +8,7 @@ namespace Database.Common
     /// <summary>
     /// Represents a node's connection information.
     /// </summary>
-    public class NodeDefinition
+    public class NodeDefinition : IComparable<NodeDefinition>
     {
         /// <summary>
         /// The connection name of the node.
@@ -81,6 +81,17 @@ namespace Database.Common
             }
 
             return definitions;
+        }
+
+        /// <inheritdoc />
+        public int CompareTo(NodeDefinition other)
+        {
+            if (other == null)
+            {
+                return 1;
+            }
+
+            return string.Compare(_connectionName, other.ConnectionName, StringComparison.Ordinal);
         }
 
         /// <inheritdoc />

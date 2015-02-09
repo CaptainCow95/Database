@@ -10,22 +10,22 @@ namespace Database.Common.Messages
         /// <summary>
         /// The first chunk's end marker.
         /// </summary>
-        private ChunkMarker _end1;
+        private readonly ChunkMarker _end1;
 
         /// <summary>
         /// The second chunk's end marker.
         /// </summary>
-        private ChunkMarker _end2;
+        private readonly ChunkMarker _end2;
 
         /// <summary>
         /// The first chunk's start marker.
         /// </summary>
-        private ChunkMarker _start1;
+        private readonly ChunkMarker _start1;
 
         /// <summary>
         /// The second chunk's start marker.
         /// </summary>
-        private ChunkMarker _start2;
+        private readonly ChunkMarker _start2;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ChunkSplit"/> class.
