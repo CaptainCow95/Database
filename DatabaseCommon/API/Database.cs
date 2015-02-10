@@ -184,7 +184,7 @@ namespace Database.Common.API
                 {
                     if (_connectedQueryNodes.Count == 0)
                     {
-                        return new Document("{\"success\":false,\"error\":\"No query nodes connected.\"}");
+                        return new Document("{\"success\":false,\"errorcode\":\"FailedMessage\",\"error\":\"No query nodes connected.\"}");
                     }
 
                     message = new Message(_connectedQueryNodes[_rand.Next(_connectedQueryNodes.Count)], new Messages.DataOperation(doc.ToJson()), true);
@@ -232,7 +232,8 @@ namespace Database.Common.API
                 {
                     lock (_connectedQueryNodes)
                     {
-                        _connectedQueryNodes = ((NodeList)message.Data).Nodes.Select(e => new NodeDefinition(e.Split(':')[0], int.Parse(e.Split(':')[1]))).ToList();
+                        _connectedQueryNodes.Clear();
+                        _connectedQueryNodes.AddRange(((NodeList)message.Data).Nodes.Select(e => new NodeDefinition(e.Split(':')[0], int.Parse(e.Split(':')[1]))));
 
                         var connections = GetConnectedNodes();
                         foreach (var item in _connectedQueryNodes)

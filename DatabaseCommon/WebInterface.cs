@@ -124,9 +124,16 @@ namespace Database.Common
             string response = _requestReceived(page, queryString);
 
             byte[] buffer = Encoding.Default.GetBytes(response);
-            context.Response.ContentLength64 = buffer.Length;
-            context.Response.OutputStream.Write(buffer, 0, buffer.Length);
-            context.Response.OutputStream.Close();
+            try
+            {
+                context.Response.ContentLength64 = buffer.Length;
+                context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                context.Response.OutputStream.Close();
+            }
+            catch
+            {
+                // The connection probably no longer exists, do nothing.
+            }
         }
 
         /// <summary>
