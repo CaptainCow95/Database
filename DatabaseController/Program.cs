@@ -77,9 +77,10 @@ namespace Database.Controller
                             page.Append("</li>");
                         }
 
+                        var chunks = _node.GetChunkList();
                         page.Append("</ul><b>Storage:</b><br /><ul>");
                         list.Where(e => e.Item2 == NodeType.Storage)
-                            .Select(e => e.Item1.ConnectionName)
+                            .Select(e => e.Item1.ConnectionName + " (" + chunks.Count(f => Equals(f.Node, e.Item1)) + ")")
                             .ToList()
                             .ForEach(e => page.Append("<li>" + e + "</li>"));
                         page.Append("</ul><b>Query:</b><br /><ul>");
@@ -108,8 +109,6 @@ namespace Database.Controller
                         page.Append("</ul>");
 
                         page.Append("<br/><b>Chunks</b><br/>");
-
-                        var chunks = _node.GetChunkList();
 
                         foreach (var item in chunks.OrderBy(e => e.Start))
                         {
