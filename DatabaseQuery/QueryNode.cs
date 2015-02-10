@@ -464,7 +464,7 @@ namespace Database.Query
                 }
 
                 var connections = GetConnectedNodes();
-                foreach (var def in _controllerNodes.Concat(_connectedStorageNodes))
+                foreach (var def in _controllerNodes.Concat(_connectedStorageNodes).ToList())
                 {
                     if (!connections.Any(e => Equals(e.Item1, def)))
                     {
