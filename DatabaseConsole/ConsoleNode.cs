@@ -89,7 +89,21 @@ namespace Database.Console
         /// <param name="command">The command data.</param>
         private void CommandAdd(List<CommandPart> command)
         {
-            Document op = new Document(((CommandPartString)command[1]).Value);
+            Document op;
+            try
+            {
+                op = new Document(((CommandPartString)command[1]).Value);
+                if (!op.Valid)
+                {
+                    System.Console.WriteLine("Invalid json passed in.");
+                    return;
+                }
+            }
+            catch
+            {
+                System.Console.WriteLine("Invalid json passed in.");
+                return;
+            }
 
             Message message;
             if (op.ContainsKey("id"))
@@ -282,7 +296,23 @@ namespace Database.Console
         {
             string op = ((CommandPartString)command[1]).Value;
 
-            Message message = new Message(_connectedDef, new DataOperation("{\"query\":{\"fields\":" + op + "}}"), true);
+            Document doc;
+            try
+            {
+                doc = new Document("{\"query\":{\"fields\":" + op + "}}");
+                if(!doc.Valid)
+                {
+                    System.Console.WriteLine("Invalid json passed in.");
+                    return;
+                }
+            }
+            catch
+            {
+                System.Console.WriteLine("Invalid json passed in.");
+                return;
+            }
+
+            Message message = new Message(_connectedDef, new DataOperation(doc.ToJson()), true);
             SendMessage(message);
             message.BlockUntilDone();
 
@@ -297,7 +327,23 @@ namespace Database.Console
         {
             string op = ((CommandPartString)command[1]).Value;
 
-            Message message = new Message(_connectedDef, new DataOperation("{\"remove\":{\"documentId\":\"" + op + "\"}}"), true);
+            Document doc;
+            try
+            {
+                doc = new Document("{\"remove\":{\"documentId\":\"" + op + "\"}}");
+                if (!doc.Valid)
+                {
+                    System.Console.WriteLine("Invalid json passed in.");
+                    return;
+                }
+            }
+            catch
+            {
+                System.Console.WriteLine("Invalid json passed in.");
+                return;
+            }
+
+            Message message = new Message(_connectedDef, new DataOperation(doc.ToJson()), true);
             SendMessage(message);
             message.BlockUntilDone();
 
@@ -312,7 +358,23 @@ namespace Database.Console
         {
             string op = ((CommandPartString)command[1]).Value;
 
-            Message message = new Message(_connectedDef, new DataOperation("{\"update\":" + op + "}"), true);
+            Document doc;
+            try
+            {
+                doc = new Document("{\"update\":" + op + "}");
+                if (!doc.Valid)
+                {
+                    System.Console.WriteLine("Invalid json passed in.");
+                    return;
+                }
+            }
+            catch
+            {
+                System.Console.WriteLine("Invalid json passed in.");
+                return;
+            }
+
+            Message message = new Message(_connectedDef, new DataOperation(doc.ToJson()), true);
             SendMessage(message);
             message.BlockUntilDone();
 
