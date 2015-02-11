@@ -222,7 +222,6 @@ namespace Database.Query
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
         /// <param name="message">The original message.</param>
-        /// <returns>The result of the operation.</returns>
         private void ProcessAddOperation(Document dataOperation, Message message)
         {
             AddOperation addOperation = new AddOperation(dataOperation["add"].ValueAsDocument);
@@ -271,7 +270,6 @@ namespace Database.Query
         /// </summary>
         /// <param name="dataOperation">The data operation to process.</param>
         /// <param name="message">The original message.</param>
-        /// <returns>The result of the operation.</returns>
         private void ProcessDataOperation(Document dataOperation, Message message)
         {
             if (dataOperation.ContainsKey("add") && dataOperation["add"].ValueType == DocumentEntryType.Document)
@@ -306,7 +304,6 @@ namespace Database.Query
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
         /// <param name="message">The original message.</param>
-        /// <returns>The result of the operation.</returns>
         private void ProcessQueryOperation(Document dataOperation, Message message)
         {
             List<Message> sent = new List<Message>();
@@ -368,7 +365,6 @@ namespace Database.Query
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
         /// <param name="message">The original message.</param>
-        /// <returns>The result of the operation.</returns>
         private void ProcessRemoveOperation(Document dataOperation, Message message)
         {
             RemoveOperation removeOperation = new RemoveOperation(dataOperation["remove"].ValueAsDocument);
@@ -417,7 +413,6 @@ namespace Database.Query
         /// </summary>
         /// <param name="dataOperation">The document that represents the operation.</param>
         /// <param name="message">The original message.</param>
-        /// <returns>The result of the operation.</returns>
         private void ProcessUpdateOperation(Document dataOperation, Message message)
         {
             UpdateOperation updateOperation = new UpdateOperation(dataOperation["update"].ValueAsDocument);

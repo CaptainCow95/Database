@@ -7,6 +7,9 @@ namespace Database.Common.Messages
     /// </summary>
     public class ChunkDataResponse : BaseMessageData
     {
+        /// <summary>
+        /// The JSON data.
+        /// </summary>
         private readonly string _jsonData;
 
         /// <summary>

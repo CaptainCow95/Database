@@ -44,6 +44,9 @@ namespace Database.Common
         /// </summary>
         private Message _response;
 
+        /// <summary>
+        /// The function to call upon receiving a response.
+        /// </summary>
         private Action<Message> _responseCallback;
 
         /// <summary>
@@ -180,6 +183,9 @@ namespace Database.Common
             get { return _inResponseTo; }
         }
 
+        /// <summary>
+        /// Gets the function to call upon receiving a response.
+        /// </summary>
         internal Action<Message> ResponseCallback
         {
             get { return _responseCallback; }
@@ -196,6 +202,10 @@ namespace Database.Common
             }
         }
 
+        /// <summary>
+        /// Sets a function to call when a response is received.
+        /// </summary>
+        /// <param name="callback">The function to call.</param>
         public void SetResponseCallback(Action<Message> callback)
         {
             _responseCallback = callback;

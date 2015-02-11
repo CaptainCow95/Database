@@ -45,8 +45,14 @@ namespace Database.Common
         /// </summary>
         private readonly ReaderWriterLockSlim _connectionsLock = new ReaderWriterLockSlim();
 
+        /// <summary>
+        /// The thread pool used to receive messages.
+        /// </summary>
         private readonly SmartThreadPool _messageReceivedThreadPool = new SmartThreadPool(SmartThreadPool.DefaultIdleTimeout, 50, 10);
 
+        /// <summary>
+        /// The thread pool used to send messages.
+        /// </summary>
         private readonly SmartThreadPool _messageSendThreadPool = new SmartThreadPool(SmartThreadPool.DefaultIdleTimeout, 10, 5);
 
         /// <summary>
@@ -149,11 +155,17 @@ namespace Database.Common
             get { return _connections; }
         }
 
+        /// <summary>
+        /// Gets the thread pool used to receive messages.
+        /// </summary>
         protected SmartThreadPool MessageReceivedThreadPool
         {
             get { return _messageReceivedThreadPool; }
         }
 
+        /// <summary>
+        /// Gets the thread pool used to send messages.
+        /// </summary>
         protected SmartThreadPool MessageSendThreadPool
         {
             get { return _messageSendThreadPool; }
@@ -532,13 +544,17 @@ namespace Database.Common
                 {
                     foreach (var message in _messagesReceived)
                     {
-                        if (message.Value.Count >= 4)
+                        while (message.Value.Count >= 4)
                         {
                             int length = BitConverter.ToInt32(message.Value.Take(4).ToArray(), 0);
                             if (message.Value.Count >= length + 4)
                             {
                                 messages.Add(new Tuple<NodeDefinition, byte[]>(message.Key, message.Value.Skip(4).Take(length).ToArray()));
                                 message.Value.RemoveRange(0, length + 4);
+                            }
+                            else
+                            {
+                                break;
                             }
                         }
                     }
