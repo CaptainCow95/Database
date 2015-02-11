@@ -1,4 +1,5 @@
 ﻿using Database.Common.Messages;
+using System;
 using System.Threading;
 
 namespace Database.Common
@@ -43,6 +44,8 @@ namespace Database.Common
         /// </summary>
         private Message _response;
 
+        private Action<Message> _responseCallback;
+
         /// <summary>
         /// A value indicating whether the message should be sent, even if the connection has yet to be confirmed.
         /// </summary>
@@ -51,7 +54,7 @@ namespace Database.Common
         /// <summary>
         /// The current status of the message.
         /// </summary>
-        private MessageStatus _status;
+        private volatile MessageStatus _status;
 
         /// <summary>
         /// A value indicating whether this message is waiting for a response.
@@ -177,6 +180,11 @@ namespace Database.Common
             get { return _inResponseTo; }
         }
 
+        internal Action<Message> ResponseCallback
+        {
+            get { return _responseCallback; }
+        }
+
         /// <summary>
         /// Blocks until an error occurs, the message is sent successfully if it isn't waiting for a response, or until a response is received if it is waiting for a response.
         /// </summary>
@@ -184,8 +192,13 @@ namespace Database.Common
         {
             while (_status == MessageStatus.Sending || _status == MessageStatus.WaitingForResponse)
             {
-                Thread.Sleep(1);
+                Thread.Sleep(10);
             }
+        }
+
+        public void SetResponseCallback(Action<Message> callback)
+        {
+            _responseCallback = callback;
         }
 
         /// <summary>

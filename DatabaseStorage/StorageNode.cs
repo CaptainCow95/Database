@@ -177,7 +177,7 @@ namespace Database.Storage
             else if (message.Data is ChunkTransfer)
             {
                 var transfer = (ChunkTransfer)message.Data;
-                ThreadPool.QueueWorkItem(TransferChunk, transfer);
+                MessageReceivedThreadPool.QueueWorkItem(TransferChunk, transfer);
             }
             else if (message.Data is ChunkDataRequest)
             {
@@ -218,6 +218,7 @@ namespace Database.Storage
             }
 
             Connections[transfer.Node].ConnectionEstablished(transfer.Node, NodeType.Storage);
+            SendMessage(new Message(joinAttempt.Response, new Acknowledgement(), false));
 
             Message request = new Message(transfer.Node, new ChunkDataRequest(transfer.Start, transfer.End), true);
             SendMessage(request);

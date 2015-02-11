@@ -948,6 +948,18 @@ namespace Database.Controller
                     Message message = new Message(node.Item1, update, true);
                     SendMessage(message);
                     message.BlockUntilDone();
+
+                    if (!message.Success)
+                    {
+                        try
+                        {
+                            Connections[node.Item1].Disconnect();
+                        }
+                        catch
+                        {
+                            // The node may have been removed in the time being, do nothing if so.
+                        }
+                    }
                 }
             }
         }

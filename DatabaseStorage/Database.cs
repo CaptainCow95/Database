@@ -101,9 +101,9 @@ namespace Database.Storage
             }
 
             data["count"] = new DocumentEntry("count", DocumentEntryType.Integer, documents.Count);
+            Message response = new Message(requestMessage, new ChunkDataResponse(data), true);
             timer.Stop();
             Logger.Log("Chunk data retrieved in " + timer.Elapsed.TotalSeconds + " seconds.", LogLevel.Info);
-            Message response = new Message(requestMessage, new ChunkDataResponse(data), true);
             _node.SendDatabaseMessage(response);
             response.BlockUntilDone();
             if (response.Success)

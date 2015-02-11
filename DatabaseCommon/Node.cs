@@ -45,25 +45,19 @@ namespace Database.Common
         /// </summary>
         private readonly ReaderWriterLockSlim _connectionsLock = new ReaderWriterLockSlim();
 
+        private readonly SmartThreadPool _messageReceivedThreadPool = new SmartThreadPool(SmartThreadPool.DefaultIdleTimeout, 50, 10);
+
+        private readonly SmartThreadPool _messageSendThreadPool = new SmartThreadPool(SmartThreadPool.DefaultIdleTimeout, 10, 5);
+
         /// <summary>
         /// A collection of the current messages to be processed.
         /// </summary>
         private readonly Dictionary<NodeDefinition, List<byte>> _messagesReceived = new Dictionary<NodeDefinition, List<byte>>();
 
         /// <summary>
-        /// A queue of the messages to be sent.
-        /// </summary>
-        private readonly Queue<Message> _messagesToSend = new Queue<Message>();
-
-        /// <summary>
         /// The port the node is running on.
         /// </summary>
         private readonly int? _port;
-
-        /// <summary>
-        /// The thread pool for the system to use.
-        /// </summary>
-        private readonly SmartThreadPool _threadPool = new SmartThreadPool(SmartThreadPool.DefaultIdleTimeout, 100, 10);
 
         /// <summary>
         /// A collection of messages that are waiting for responses.
@@ -89,11 +83,6 @@ namespace Database.Common
         /// The thread listening for new messages.
         /// </summary>
         private Thread _messageListenerThread;
-
-        /// <summary>
-        /// The thread sending messages.
-        /// </summary>
-        private Thread _messageSenderThread;
 
         /// <summary>
         /// The primary controller.
@@ -160,12 +149,14 @@ namespace Database.Common
             get { return _connections; }
         }
 
-        /// <summary>
-        /// Gets the thread pool used by the node.
-        /// </summary>
-        protected SmartThreadPool ThreadPool
+        protected SmartThreadPool MessageReceivedThreadPool
         {
-            get { return _threadPool; }
+            get { return _messageReceivedThreadPool; }
+        }
+
+        protected SmartThreadPool MessageSendThreadPool
+        {
+            get { return _messageSendThreadPool; }
         }
 
         /// <summary>
@@ -203,7 +194,8 @@ namespace Database.Common
                 }
             }
 
-            _threadPool.Shutdown();
+            _messageReceivedThreadPool.Shutdown();
+            _messageSendThreadPool.Shutdown();
         }
 
         /// <summary>
@@ -211,15 +203,13 @@ namespace Database.Common
         /// </summary>
         protected void BeforeStart()
         {
-            _threadPool.Start();
+            _messageReceivedThreadPool.Start();
+            _messageSendThreadPool.Start();
 
             _running = true;
 
             _messageListenerThread = new Thread(RunMessageListener);
             _messageListenerThread.Start();
-
-            _messageSenderThread = new Thread(RunMessageSender);
-            _messageSenderThread.Start();
 
             if (_port.HasValue)
             {
@@ -305,10 +295,7 @@ namespace Database.Common
         protected void SendMessage(Message message)
         {
             message.Status = MessageStatus.Sending;
-            lock (_messagesToSend)
-            {
-                _messagesToSend.Enqueue(message);
-            }
+            _messageSendThreadPool.QueueWorkItem(SendMessageWorkItem, message);
         }
 
         /// <summary>
@@ -388,13 +375,18 @@ namespace Database.Common
                         Message waiting = _waitingForResponses[message.InResponseTo].Item1;
                         waiting.Response = message;
                         waiting.Status = MessageStatus.ResponseReceived;
+                        if (waiting.ResponseCallback != null)
+                        {
+                            _messageReceivedThreadPool.QueueWorkItem(waiting.ResponseCallback, waiting);
+                        }
+
                         _waitingForResponses.Remove(message.InResponseTo);
                     }
                 }
             }
             else if (!(message.Data is Heartbeat))
             {
-                _threadPool.QueueWorkItem(MessageReceivedHandler, message);
+                _messageReceivedThreadPool.QueueWorkItem(MessageReceivedHandler, message);
             }
         }
 
@@ -444,7 +436,7 @@ namespace Database.Common
                             });
                         }
 
-                        _threadPool.QueueWorkItem(ConnectionLostHandler, connection);
+                        _messageReceivedThreadPool.QueueWorkItem(ConnectionLostHandler, connection);
                     }
                 }
 
@@ -526,7 +518,7 @@ namespace Database.Common
                                 connection.Value.ResetLastActiveTime();
                             }
                         }
-                        catch (ObjectDisposedException)
+                        catch
                         {
                             // The stream was closed, do nothing.
                         }
@@ -555,27 +547,6 @@ namespace Database.Common
                 foreach (var message in messages)
                 {
                     ProcessMessage(message.Item1, message.Item2);
-                }
-
-                Thread.Sleep(1);
-            }
-        }
-
-        /// <summary>
-        /// The run method of the message sender thread.
-        /// </summary>
-        private void RunMessageSender()
-        {
-            while (_running)
-            {
-                lock (_messagesToSend)
-                {
-                    while (_messagesToSend.Count > 0)
-                    {
-                        var message = _messagesToSend.Dequeue();
-
-                        _threadPool.QueueWorkItem(SendMessageWorkItem, message, WorkItemPriority.Highest);
-                    }
                 }
 
                 Thread.Sleep(1);

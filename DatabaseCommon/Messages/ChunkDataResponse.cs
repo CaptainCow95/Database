@@ -7,10 +7,12 @@ namespace Database.Common.Messages
     /// </summary>
     public class ChunkDataResponse : BaseMessageData
     {
+        private readonly string _jsonData;
+
         /// <summary>
         /// The data that was in the chunk.
         /// </summary>
-        private readonly Document _data;
+        private Document _data;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ChunkDataResponse"/> class.
@@ -19,6 +21,7 @@ namespace Database.Common.Messages
         public ChunkDataResponse(Document data)
         {
             _data = data;
+            _jsonData = data.ToJson();
         }
 
         /// <summary>
@@ -28,7 +31,7 @@ namespace Database.Common.Messages
         /// <param name="index">The index at which to start reading from.</param>
         public ChunkDataResponse(byte[] data, int index)
         {
-            _data = new Document(ByteArrayHelper.ToString(data, ref index));
+            _jsonData = ByteArrayHelper.ToString(data, ref index);
         }
 
         /// <summary>
@@ -36,7 +39,15 @@ namespace Database.Common.Messages
         /// </summary>
         public Document Data
         {
-            get { return _data; }
+            get
+            {
+                if (_data == null)
+                {
+                    _data = new Document(_jsonData);
+                }
+
+                return _data;
+            }
         }
 
         /// <inheritdoc />
