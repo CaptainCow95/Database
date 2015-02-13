@@ -21,6 +21,9 @@ namespace Database.Console
         /// </summary>
         private bool _consoleRunning;
 
+        /// <summary>
+        /// The API object used to connect to the database.
+        /// </summary>
         private API.Database _database;
 
         /// <inheritdoc />

@@ -29,6 +29,9 @@ namespace Database.Common.API
             _node.WaitUntilFirstNodeListMessage();
         }
 
+        /// <summary>
+        /// Gets a value indicating whether this node is connected to a database.
+        /// </summary>
         public bool Connected
         {
             get { return _node.Connected; }
@@ -129,6 +132,9 @@ namespace Database.Common.API
             /// </summary>
             private readonly Random _rand = new Random();
 
+            /// <summary>
+            /// A value indicating whether this node is connected to a database.
+            /// </summary>
             private bool _connected = false;
 
             /// <summary>
@@ -151,6 +157,9 @@ namespace Database.Common.API
                 _connectionString = connectionString;
             }
 
+            /// <summary>
+            /// Gets a value indicating whether this node is connected to a database.
+            /// </summary>
             public bool Connected
             {
                 get { return _connected; }
