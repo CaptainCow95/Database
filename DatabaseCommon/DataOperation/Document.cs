@@ -54,6 +54,12 @@ namespace Database.Common.DataOperation
                     {
                         throw new InvalidDocumentException();
                     }
+
+                    if (reader.Read())
+                    {
+                        // Was able to read an additional token after the end of the file.
+                        throw new InvalidDocumentException();
+                    }
                 }
             }
             catch

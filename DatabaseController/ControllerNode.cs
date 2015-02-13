@@ -303,31 +303,6 @@ namespace Database.Controller
                 Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
                 Primary = message.Address;
             }
-            else if (message.Data is DataOperation)
-            {
-                var nodes = GetConnectedNodes();
-                bool found = false;
-                foreach (var node in nodes)
-                {
-                    if (node.Item2 == NodeType.Query)
-                    {
-                        found = true;
-                        Message op = new Message(node.Item1, message.Data, true);
-                        SendMessage(op);
-
-                        op.BlockUntilDone();
-
-                        SendMessage(new Message(message, op.Success ? op.Response.Data : new DataOperationResult(ErrorCodes.FailedMessage, "Message to the query node failed."), false));
-
-                        break;
-                    }
-                }
-
-                if (!found)
-                {
-                    SendMessage(new Message(message, new DataOperationResult(ErrorCodes.FailedMessage, "Could not reach a query node."), false));
-                }
-            }
             else if (message.Data is ChunkListUpdate)
             {
                 lock (_chunkList)
@@ -702,13 +677,6 @@ namespace Database.Controller
                         }
                     }
 
-                    break;
-
-                case NodeType.Console:
-                    Connections[message.Address].ConnectionEstablished(message.Address, joinAttemptData.Type);
-                    var consoleResponse = new Message(message, new JoinSuccess(new Document("{\"PrimaryController\":" + Equals(Primary, Self).ToString().ToLower() + "}")), true);
-                    SendMessage(consoleResponse);
-                    consoleResponse.BlockUntilDone();
                     break;
 
                 case NodeType.Api:

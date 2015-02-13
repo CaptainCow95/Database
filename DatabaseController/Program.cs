@@ -36,7 +36,6 @@ namespace Database.Controller
                         nodes["controllers"] = new DocumentEntry("controller", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Controller).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
                         nodes["storage"] = new DocumentEntry("storage", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Storage).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
                         nodes["query"] = new DocumentEntry("query", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Query).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
-                        nodes["console"] = new DocumentEntry("console", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Console).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
                         nodes["api"] = new DocumentEntry("api", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Api).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
 
                         Document chunks = new Document();
@@ -88,14 +87,6 @@ namespace Database.Controller
                             .Select(e => e.Item1.ConnectionName)
                             .ToList()
                             .ForEach(e => page.Append("<li>" + e + "</li>"));
-                        if (list.Any(e => e.Item2 == NodeType.Console))
-                        {
-                            page.Append("</ul><b>Console:</b><br /><ul>");
-                            list.Where(e => e.Item2 == NodeType.Console)
-                                .Select(e => e.Item1.ConnectionName)
-                                .ToList()
-                                .ForEach(e => page.Append("<li>" + e + "</li>"));
-                        }
 
                         if (list.Any(e => e.Item2 == NodeType.Api))
                         {

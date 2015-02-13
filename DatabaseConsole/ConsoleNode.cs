@@ -1,8 +1,8 @@
 ﻿using Database.Common;
 using Database.Common.DataOperation;
-using Database.Common.Messages;
 using System;
 using System.Collections.Generic;
+using API = Database.Common.API;
 
 namespace Database.Console
 {
@@ -17,14 +17,11 @@ namespace Database.Console
         private bool _connected = false;
 
         /// <summary>
-        /// The node definition of the connected controller.
-        /// </summary>
-        private NodeDefinition _connectedDef;
-
-        /// <summary>
         /// A value indicating whether the console is running.
         /// </summary>
         private bool _consoleRunning;
+
+        private API.Database _database;
 
         /// <inheritdoc />
         public override NodeDefinition Self
@@ -89,56 +86,13 @@ namespace Database.Console
         /// <param name="command">The command data.</param>
         private void CommandAdd(List<CommandPart> command)
         {
-            Document op;
-            try
+            if (!_connected)
             {
-                op = new Document(((CommandPartString)command[1]).Value);
-                if (!op.Valid)
-                {
-                    System.Console.WriteLine("Invalid json passed in.");
-                    return;
-                }
-            }
-            catch
-            {
-                System.Console.WriteLine("Invalid json passed in.");
+                System.Console.WriteLine("Not connected to a database.");
                 return;
             }
 
-            Message message;
-            if (op.ContainsKey("id"))
-            {
-                message = new Message(_connectedDef, new DataOperation("{\"add\":{\"document\":" + op.ToJson() + "}}"), true);
-                SendMessage(message);
-                message.BlockUntilDone();
-            }
-            else
-            {
-                while (true)
-                {
-                    op["id"] = new DocumentEntry("id", DocumentEntryType.String, new ObjectId().ToString());
-                    message = new Message(_connectedDef, new DataOperation("{\"add\":{\"document\":" + op.ToJson() + "}}"), true);
-                    SendMessage(message);
-                    message.BlockUntilDone();
-
-                    if (!message.Success)
-                    {
-                        break;
-                    }
-
-                    var result = new Document(((DataOperationResult)message.Response.Data).Result);
-                    if (!result["success"].ValueAsBoolean && (ErrorCodes)Enum.Parse(typeof(ErrorCodes), result["errorcode"].ValueAsString) == ErrorCodes.InvalidId)
-                    {
-                        op["id"] = new DocumentEntry("id", DocumentEntryType.String, new ObjectId().ToString());
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-            }
-
-            System.Console.WriteLine(message.Success ? ((DataOperationResult)message.Response.Data).Result : "Message failure.");
+            System.Console.WriteLine(_database.Add(new Document(((CommandPartString)command[1]).Value)).ToJson());
         }
 
         /// <summary>
@@ -153,47 +107,16 @@ namespace Database.Console
                 return;
             }
 
-            string targetString = ((CommandPartString)command[1]).Value;
-            string[] targetStringParts = targetString.Split(':');
-            if (targetStringParts.Length != 2)
+            _database = new API.Database(((CommandPartString)command[1]).Value);
+
+            if (_database.Connected)
             {
-                System.Console.WriteLine("Failed to connect, error while parsing target");
-                return;
-            }
-
-            int port;
-            if (!int.TryParse(targetStringParts[1], out port))
-            {
-                System.Console.WriteLine("Failed to connect, error while parsing port");
-            }
-
-            NodeDefinition def = new NodeDefinition(targetStringParts[0], port);
-
-            Message message = new Message(def, new JoinAttempt(), true)
-            {
-                SendWithoutConfirmation = true
-            };
-
-            SendMessage(message);
-            message.BlockUntilDone();
-
-            if (message.Success)
-            {
-                if (message.Response.Data is JoinFailure)
-                {
-                    System.Console.WriteLine("Failed to connect, " + ((JoinFailure)message.Response.Data).Reason);
-                }
-                else
-                {
-                    System.Console.WriteLine("Connected to " + def.ConnectionName);
-                    _connectedDef = def;
-                    _connected = true;
-                    Connections[def].ConnectionEstablished(def, NodeType.Controller);
-                }
+                _connected = true;
+                System.Console.WriteLine("Connected to database.");
             }
             else
             {
-                System.Console.WriteLine("Failed to connect, could not reach target");
+                System.Console.WriteLine("Failed to connect to database.");
             }
         }
 
@@ -203,15 +126,9 @@ namespace Database.Console
         /// <param name="command">The command data.</param>
         private void CommandDisconnect(List<CommandPart> command)
         {
-            foreach (var con in Connections)
-            {
-                con.Value.Disconnect();
-            }
-
-            System.Console.WriteLine("Disconnected");
-
+            _database.Shutdown();
             _connected = false;
-            _connectedDef = null;
+            System.Console.WriteLine("Disconnected");
         }
 
         /// <summary>
@@ -294,29 +211,13 @@ namespace Database.Console
         /// <param name="command">The command data.</param>
         private void CommandQuery(List<CommandPart> command)
         {
-            string op = ((CommandPartString)command[1]).Value;
-
-            Document doc;
-            try
+            if (!_connected)
             {
-                doc = new Document("{\"query\":{\"fields\":" + op + "}}");
-                if(!doc.Valid)
-                {
-                    System.Console.WriteLine("Invalid json passed in.");
-                    return;
-                }
-            }
-            catch
-            {
-                System.Console.WriteLine("Invalid json passed in.");
+                System.Console.WriteLine("Not connected to a database.");
                 return;
             }
 
-            Message message = new Message(_connectedDef, new DataOperation(doc.ToJson()), true);
-            SendMessage(message);
-            message.BlockUntilDone();
-
-            System.Console.WriteLine(message.Success ? ((DataOperationResult)message.Response.Data).Result : "Message failure.");
+            System.Console.WriteLine(_database.Query(new Document(((CommandPartString)command[1]).Value)).ToJson());
         }
 
         /// <summary>
@@ -325,29 +226,13 @@ namespace Database.Console
         /// <param name="command">The command data.</param>
         private void CommandRemove(List<CommandPart> command)
         {
-            string op = ((CommandPartString)command[1]).Value;
-
-            Document doc;
-            try
+            if (!_connected)
             {
-                doc = new Document("{\"remove\":{\"documentId\":\"" + op + "\"}}");
-                if (!doc.Valid)
-                {
-                    System.Console.WriteLine("Invalid json passed in.");
-                    return;
-                }
-            }
-            catch
-            {
-                System.Console.WriteLine("Invalid json passed in.");
+                System.Console.WriteLine("Not connected to a database.");
                 return;
             }
 
-            Message message = new Message(_connectedDef, new DataOperation(doc.ToJson()), true);
-            SendMessage(message);
-            message.BlockUntilDone();
-
-            System.Console.WriteLine(message.Success ? ((DataOperationResult)message.Response.Data).Result : "Message failure.");
+            System.Console.WriteLine(_database.Remove(((CommandPartString)command[1]).Value).ToJson());
         }
 
         /// <summary>
@@ -356,29 +241,13 @@ namespace Database.Console
         /// <param name="command">The command data.</param>
         private void CommandUpdate(List<CommandPart> command)
         {
-            string op = ((CommandPartString)command[1]).Value;
-
-            Document doc;
-            try
+            if (!_connected)
             {
-                doc = new Document("{\"update\":" + op + "}");
-                if (!doc.Valid)
-                {
-                    System.Console.WriteLine("Invalid json passed in.");
-                    return;
-                }
-            }
-            catch
-            {
-                System.Console.WriteLine("Invalid json passed in.");
+                System.Console.WriteLine("Not connected to a database.");
                 return;
             }
 
-            Message message = new Message(_connectedDef, new DataOperation(doc.ToJson()), true);
-            SendMessage(message);
-            message.BlockUntilDone();
-
-            System.Console.WriteLine(message.Success ? ((DataOperationResult)message.Response.Data).Result : "Message failure.");
+            System.Console.WriteLine(_database.Update(new Document(((CommandPartString)command[1]).Value)).ToJson());
         }
     }
 }

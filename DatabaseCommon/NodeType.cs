@@ -21,11 +21,6 @@
         Query,
 
         /// <summary>
-        /// Represents a console node.
-        /// </summary>
-        Console,
-
-        /// <summary>
         /// Represents an API node.
         /// </summary>
         Api,

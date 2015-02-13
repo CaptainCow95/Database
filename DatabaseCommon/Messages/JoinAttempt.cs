@@ -35,15 +35,6 @@ namespace Database.Common.Messages
         /// <summary>
         /// Initializes a new instance of the <see cref="JoinAttempt"/> class.
         /// </summary>
-        /// <remarks>Used by the console node only.</remarks>
-        public JoinAttempt()
-            : this(NodeType.Console, string.Empty, -1, string.Empty, false)
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="JoinAttempt"/> class.
-        /// </summary>
         /// <param name="type">The type of the node.</param>
         /// <param name="name">The name of the node.</param>
         /// <param name="port">The port of the node.</param>

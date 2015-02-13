@@ -29,6 +29,11 @@ namespace Database.Common.API
             _node.WaitUntilFirstNodeListMessage();
         }
 
+        public bool Connected
+        {
+            get { return _node.Connected; }
+        }
+
         /// <summary>
         /// Adds a document.
         /// </summary>
@@ -36,6 +41,11 @@ namespace Database.Common.API
         /// <returns>The resulting document.</returns>
         public Document Add(Document doc)
         {
+            if (!doc.Valid)
+            {
+                return new Document("{\"success\":false,\"errorcode\":\"InvalidDocument\",\"errordescription\":\"The document is invalid.\"}");
+            }
+
             if (doc.ContainsKey("id"))
             {
                 return _node.SendMessageToQuery(new Document("{\"add\":{\"document\":" + doc.ToJson() + "}}"));
@@ -63,6 +73,11 @@ namespace Database.Common.API
         /// <returns>The resulting document.</returns>
         public Document Query(Document doc)
         {
+            if (!doc.Valid)
+            {
+                return new Document("{\"success\":false,\"errorcode\":\"InvalidDocument\",\"errordescription\":\"The document is invalid.\"}");
+            }
+
             return _node.SendMessageToQuery(new Document("{\"query\":{\"fields\":" + doc.ToJson() + "}}"));
         }
 
@@ -91,6 +106,11 @@ namespace Database.Common.API
         /// <returns>The resulting document.</returns>
         public Document Update(Document doc)
         {
+            if (!doc.Valid)
+            {
+                return new Document("{\"success\":false,\"errorcode\":\"InvalidDocument\",\"errordescription\":\"The document is invalid.\"}");
+            }
+
             return _node.SendMessageToQuery(new Document("{\"update\":" + doc.ToJson() + "}"));
         }
 
@@ -108,6 +128,8 @@ namespace Database.Common.API
             /// The random number generator.
             /// </summary>
             private readonly Random _rand = new Random();
+
+            private bool _connected = false;
 
             /// <summary>
             /// A list of the connected query nodes.
@@ -127,6 +149,11 @@ namespace Database.Common.API
                 : base()
             {
                 _connectionString = connectionString;
+            }
+
+            public bool Connected
+            {
+                get { return _connected; }
             }
 
             /// <inheritdoc />
@@ -156,6 +183,7 @@ namespace Database.Common.API
                     {
                         if (message.Response.Data is JoinFailure)
                         {
+                            _connected = false;
                             AfterStop();
                             return;
                         }
@@ -165,6 +193,7 @@ namespace Database.Common.API
                         if (successData.Data["PrimaryController"].ValueAsBoolean)
                         {
                             Primary = message.Address;
+                            _connected = true;
                         }
 
                         SendMessage(new Message(message.Response, new Acknowledgement(), false));
@@ -206,6 +235,7 @@ namespace Database.Common.API
             /// </summary>
             public void Shutdown()
             {
+                _connected = false;
                 AfterStop();
             }
 
