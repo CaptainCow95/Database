@@ -41,6 +41,12 @@ namespace Database.Common.DataOperation
                     while (reader.Read() && reader.TokenType != JsonToken.EndObject)
                     {
                         DocumentEntry entry = new DocumentEntry(reader, false);
+                        if (entry.ValueType == DocumentEntryType.Document && !entry.ValueAsDocument.Valid)
+                        {
+                            _valid = false;
+                            return;
+                        }
+
                         _data.Add(entry.Key, entry);
                     }
 
@@ -50,7 +56,7 @@ namespace Database.Common.DataOperation
                     }
                 }
             }
-            catch (InvalidDocumentException)
+            catch
             {
                 _valid = false;
             }

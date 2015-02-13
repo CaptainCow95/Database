@@ -200,7 +200,7 @@ namespace Database.Query
                 }
                 catch
                 {
-                    SendMessage(new Message(message, new DataOperationResult(ErrorCodes.FailedMessage, "An exception occurrd while processing the operation."), false));
+                    SendMessage(new Message(message, new DataOperationResult(ErrorCodes.FailedMessage, "An exception occurred while processing the operation."), false));
                 }
             }
             else if (message.Data is ChunkListUpdate)
