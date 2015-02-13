@@ -1,4 +1,4 @@
-# Database
+# Database [![Build Status](https://travis-ci.org/CaptainCow95/Database.svg)](https://travis-ci.org/CaptainCow95/Database)
 A distributed document-based database.
 
 Currently working:
