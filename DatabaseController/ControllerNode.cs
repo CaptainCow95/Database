@@ -528,15 +528,24 @@ namespace Database.Controller
                     ControllerNodeSettings joinSettings = new ControllerNodeSettings(joinAttemptData.Settings);
                     if (joinSettings.ConnectionString != _settings.ConnectionString)
                     {
-                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
+                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false)
+                        {
+                            SendWithoutConfirmation = true
+                        });
                     }
                     else if (joinSettings.MaxChunkItemCount != _settings.MaxChunkItemCount)
                     {
-                        SendMessage(new Message(message, new JoinFailure("Max chunk item counts do not match."), false));
+                        SendMessage(new Message(message, new JoinFailure("Max chunk item counts do not match."), false)
+                        {
+                            SendWithoutConfirmation = true
+                        });
                     }
                     else if (joinSettings.RedundantNodesPerLocation != _settings.RedundantNodesPerLocation)
                     {
-                        SendMessage(new Message(message, new JoinFailure("Redundent nodes per location do not match."), false));
+                        SendMessage(new Message(message, new JoinFailure("Redundent nodes per location do not match."), false)
+                        {
+                            SendWithoutConfirmation = true
+                        });
                     }
                     else
                     {
@@ -574,7 +583,10 @@ namespace Database.Controller
                     QueryNodeSettings queryJoinSettings = new QueryNodeSettings(joinAttemptData.Settings);
                     if (queryJoinSettings.ConnectionString != _settings.ConnectionString)
                     {
-                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
+                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false)
+                        {
+                            SendWithoutConfirmation = true
+                        });
                     }
                     else
                     {
@@ -605,7 +617,10 @@ namespace Database.Controller
                     StorageNodeSettings storageJoinSettings = new StorageNodeSettings(joinAttemptData.Settings);
                     if (storageJoinSettings.ConnectionString != _settings.ConnectionString)
                     {
-                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
+                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false)
+                        {
+                            SendWithoutConfirmation = true
+                        });
                     }
                     else
                     {
@@ -682,7 +697,10 @@ namespace Database.Controller
                 case NodeType.Api:
                     if (joinAttemptData.Settings != _settings.ConnectionString)
                     {
-                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false));
+                        SendMessage(new Message(message, new JoinFailure("Connection strings do not match."), false)
+                        {
+                            SendWithoutConfirmation = true
+                        });
                     }
                     else
                     {

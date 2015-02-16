@@ -63,6 +63,11 @@ namespace Database.Console
                 }
             }
 
+            if (_database != null)
+            {
+                _database.Shutdown();
+            }
+
             AfterStop();
         }
 

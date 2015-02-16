@@ -253,7 +253,7 @@ namespace Database.Common.API
             /// </summary>
             internal void WaitUntilFirstNodeListMessage()
             {
-                while (!_receivedFirstNodeListMessage)
+                while (Running && !_receivedFirstNodeListMessage)
                 {
                     Thread.Sleep(1);
                 }
