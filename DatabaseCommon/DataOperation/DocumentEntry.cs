@@ -203,6 +203,12 @@ namespace Database.Common.DataOperation
             return _valueType == entry._valueType && _value.Equals(entry._value);
         }
 
+        /// <inheritdoc />
+        public override int GetHashCode()
+        {
+            return _value.GetHashCode();
+        }
+
         /// <summary>
         /// Writes this entry to the specified writer.
         /// </summary>
