@@ -215,7 +215,30 @@ namespace Database.Common.DataOperation
         public override bool Equals(object obj)
         {
             var doc = obj as Document;
-            return doc != null && Equals(_data, doc._data);
+            if (doc == null)
+            {
+                return false;
+            }
+
+            if (_data.Count != doc._data.Count)
+            {
+                return false;
+            }
+
+            foreach (var key in _data.Keys)
+            {
+                if (!doc._data.ContainsKey(key))
+                {
+                    return false;
+                }
+
+                if (!_data[key].Equals(doc._data[key]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <inheritdoc />
