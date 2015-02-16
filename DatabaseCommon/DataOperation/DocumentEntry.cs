@@ -44,37 +44,30 @@ namespace Database.Common.DataOperation
         /// <param name="arrayEntry">A value indicating whether this is an entry in an array.</param>
         internal DocumentEntry(JsonTextReader reader, bool arrayEntry)
         {
-            if (arrayEntry)
+            if (!arrayEntry)
             {
-                // Array entry, so there is no key.
-                _key = string.Empty;
-                var result = ReadValue(reader);
-                _value = result.Item1;
-                _valueType = result.Item2;
-            }
-            else
-            {
+                // Not a array entry, so there is a key.
                 _key = (string)reader.Value;
                 reader.Read();
+            }
 
-                switch (reader.TokenType)
-                {
-                    case JsonToken.StartArray:
-                        _value = ReadArray(reader);
-                        _valueType = DocumentEntryType.Array;
-                        break;
+            switch (reader.TokenType)
+            {
+                case JsonToken.StartArray:
+                    _value = ReadArray(reader);
+                    _valueType = DocumentEntryType.Array;
+                    break;
 
-                    case JsonToken.StartObject:
-                        _value = ReadDocument(reader);
-                        _valueType = DocumentEntryType.Document;
-                        break;
+                case JsonToken.StartObject:
+                    _value = ReadDocument(reader);
+                    _valueType = DocumentEntryType.Document;
+                    break;
 
-                    default:
-                        var result = ReadValue(reader);
-                        _value = result.Item1;
-                        _valueType = result.Item2;
-                        break;
-                }
+                default:
+                    var result = ReadValue(reader);
+                    _value = result.Item1;
+                    _valueType = result.Item2;
+                    break;
             }
         }
 
@@ -196,6 +189,24 @@ namespace Database.Common.DataOperation
         public DocumentEntryType ValueType
         {
             get { return _valueType; }
+        }
+
+        /// <inheritdoc />
+        public override bool Equals(object obj)
+        {
+            DocumentEntry entry = obj as DocumentEntry;
+            if (entry == null)
+            {
+                return false;
+            }
+
+            return _valueType == entry._valueType && _value.Equals(entry._value);
+        }
+
+        /// <inheritdoc />
+        public override int GetHashCode()
+        {
+            return _value.GetHashCode();
         }
 
         /// <summary>
