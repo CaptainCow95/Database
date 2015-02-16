@@ -135,12 +135,18 @@ namespace Database.Query
                 JoinAttempt attempt = (JoinAttempt)message.Data;
                 if (attempt.Type != NodeType.Api)
                 {
-                    SendMessage(new Message(message, new JoinFailure("Only an API node can send a join attempt to a query node."), false));
+                    SendMessage(new Message(message, new JoinFailure("Only an API node can send a join attempt to a query node."), false)
+                    {
+                        SendWithoutConfirmation = true
+                    });
                 }
 
                 if (attempt.Settings != _settings.ConnectionString)
                 {
-                    SendMessage(new Message(message, new JoinFailure("The connection strings do not match."), false));
+                    SendMessage(new Message(message, new JoinFailure("The connection strings do not match."), false)
+                    {
+                        SendWithoutConfirmation = true
+                    });
                 }
 
                 Connections[message.Address].ConnectionEstablished(message.Address, attempt.Type);

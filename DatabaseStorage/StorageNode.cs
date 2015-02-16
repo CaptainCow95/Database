@@ -131,12 +131,18 @@ namespace Database.Storage
                 JoinAttempt attempt = (JoinAttempt)message.Data;
                 if (attempt.Type != NodeType.Query && attempt.Type != NodeType.Storage)
                 {
-                    SendMessage(new Message(message, new JoinFailure("Only a query node can send a join attempt to a storage node."), false));
+                    SendMessage(new Message(message, new JoinFailure("Only a query node can send a join attempt to a storage node."), false)
+                    {
+                        SendWithoutConfirmation = true
+                    });
                 }
 
                 if (attempt.Settings != _settings.ConnectionString)
                 {
-                    SendMessage(new Message(message, new JoinFailure("The connection strings do not match."), false));
+                    SendMessage(new Message(message, new JoinFailure("The connection strings do not match."), false)
+                    {
+                        SendWithoutConfirmation = true
+                    });
                 }
 
                 NodeDefinition nodeDef = new NodeDefinition(attempt.Name, attempt.Port);
