@@ -29,9 +29,9 @@ namespace Database.Controller
         private readonly List<ChunkDefinition> _chunkList = new List<ChunkDefinition>();
 
         /// <summary>
-        /// A list of the connected storage nodes.
+        /// A list of the connected storage nodes and their weights.
         /// </summary>
-        private readonly List<NodeDefinition> _storageNodes = new List<NodeDefinition>();
+        private readonly List<Tuple<NodeDefinition, int>> _storageNodes = new List<Tuple<NodeDefinition, int>>();
 
         /// <summary>
         /// The current balancing state.
@@ -212,7 +212,7 @@ namespace Database.Controller
             {
                 lock (_storageNodes)
                 {
-                    _storageNodes.Remove(node);
+                    _storageNodes.RemoveAll(e => e.Item1.Equals(node));
                 }
 
                 lock (_chunkList)
@@ -411,7 +411,7 @@ namespace Database.Controller
         /// </summary>
         private void BalanceChunks()
         {
-            SortedList<NodeDefinition, int> chunksPerNode = new SortedList<NodeDefinition, int>();
+            SortedList<NodeDefinition, float> chunksPerNode = new SortedList<NodeDefinition, float>();
             lock (_chunkList)
             {
                 if (_chunkList.Count == 0)
@@ -433,7 +433,7 @@ namespace Database.Controller
                     }
                     else
                     {
-                        chunksPerNode[item.Node]++;
+                        chunksPerNode[item.Node] += 1;
                     }
                 }
 
@@ -441,17 +441,20 @@ namespace Database.Controller
                 {
                     foreach (var item in _storageNodes)
                     {
-                        if (!chunksPerNode.ContainsKey(item))
+                        if (!chunksPerNode.ContainsKey(item.Item1))
                         {
-                            chunksPerNode.Add(item, 0);
+                            chunksPerNode.Add(item.Item1, 0);
                         }
+
+                        chunksPerNode[item.Item1] /= item.Item2;
                     }
                 }
 
-                if (chunksPerNode.Max(e => e.Value) - chunksPerNode.Min(e => e.Value) > 2)
+                var sortedChunks = chunksPerNode.OrderBy(e => e.Value).ToList();
+                if (sortedChunks[sortedChunks.Count - 1].Value - sortedChunks[0].Value > 2)
                 {
-                    var minNode = chunksPerNode.First(e => e.Value == chunksPerNode.Min(f => f.Value)).Key;
-                    var maxNode = chunksPerNode.First(e => e.Value == chunksPerNode.Max(f => f.Value)).Key;
+                    var minNode = sortedChunks[0].Key;
+                    var maxNode = sortedChunks[sortedChunks.Count - 1].Key;
                     Random rand = new Random();
                     var possibleChunks = _chunkList.Where(e => Equals(e.Node, maxNode)).ToList();
                     var chunk = possibleChunks[rand.Next(possibleChunks.Count)];
@@ -647,7 +650,7 @@ namespace Database.Controller
                         {
                             lock (_storageNodes)
                             {
-                                _storageNodes.Add(nodeDef);
+                                _storageNodes.Add(new Tuple<NodeDefinition, int>(nodeDef, storageJoinSettings.Weight));
                             }
 
                             SendStorageNodeConnectionMessage();
@@ -815,14 +818,14 @@ namespace Database.Controller
                     }
                 }
 
-                int difference = 0;
+                float difference = 0;
                 if (balance)
                 {
                     lock (_chunkList)
                     {
                         if (_chunkList.Count > 0)
                         {
-                            SortedList<NodeDefinition, int> chunksPerNode = new SortedList<NodeDefinition, int>();
+                            SortedList<NodeDefinition, float> chunksPerNode = new SortedList<NodeDefinition, float>();
                             foreach (var item in _chunkList)
                             {
                                 if (!chunksPerNode.ContainsKey(item.Node))
@@ -831,7 +834,7 @@ namespace Database.Controller
                                 }
                                 else
                                 {
-                                    chunksPerNode[item.Node]++;
+                                    chunksPerNode[item.Node] += 1;
                                 }
                             }
 
@@ -839,14 +842,17 @@ namespace Database.Controller
                             {
                                 foreach (var item in _storageNodes)
                                 {
-                                    if (!chunksPerNode.ContainsKey(item))
+                                    if (!chunksPerNode.ContainsKey(item.Item1))
                                     {
-                                        chunksPerNode.Add(item, 0);
+                                        chunksPerNode.Add(item.Item1, 0);
                                     }
+
+                                    chunksPerNode[item.Item1] /= item.Item2;
                                 }
                             }
 
-                            difference = chunksPerNode.Max(e => e.Value) - chunksPerNode.Min(e => e.Value);
+                            var sortedChunks = chunksPerNode.OrderBy(e => e.Value).ToList();
+                            difference = sortedChunks[sortedChunks.Count - 1].Value - sortedChunks[0].Value;
                         }
                     }
                 }
