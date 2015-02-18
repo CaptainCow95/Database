@@ -1,10 +1,10 @@
 ﻿using Database.Common.DataOperation;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace Database.Storage
 {
@@ -26,7 +26,9 @@ namespace Database.Storage
         /// <summary>
         /// The data contained by the chunk.
         /// </summary>
-        private ConcurrentDictionary<ObjectId, Document> _data = new ConcurrentDictionary<ObjectId, Document>();
+        private SortedDictionary<ObjectId, Document> _data = new SortedDictionary<ObjectId, Document>();
+
+        private ReaderWriterLockSlim _dataLock = new ReaderWriterLockSlim();
 
         /// <summary>
         /// The end of the chunk.
@@ -50,7 +52,7 @@ namespace Database.Storage
         /// <param name="start">The start of the chunk.</param>
         /// <param name="end">The end of the chunk.</param>
         /// <param name="data">The data to load the chunk with.</param>
-        private DatabaseChunk(ChunkMarker start, ChunkMarker end, ConcurrentDictionary<ObjectId, Document> data)
+        private DatabaseChunk(ChunkMarker start, ChunkMarker end, SortedDictionary<ObjectId, Document> data)
         {
             _start = start;
             _end = end;
@@ -113,11 +115,15 @@ namespace Database.Storage
                 throw new ArgumentException("The chunks are either not next to each other or you are trying to merge with the last chunk instead of the first.");
             }
 
+            _dataLock.EnterWriteLock();
+
             // Copy the data over.
             foreach (var item in c._data)
             {
-                _data.TryAdd(item.Key, item.Value);
+                _data.Add(item.Key, item.Value);
             }
+
+            _dataLock.ExitWriteLock();
 
             _end = c._end;
         }
@@ -129,8 +135,13 @@ namespace Database.Storage
         /// <returns>A list of the matching documents in the chunk.</returns>
         public List<Document> Query(List<QueryItem> queryItems)
         {
-            _changed = true;
-            return _data.Where(e => queryItems.All(query => query.Match(e.Value))).Select(e => e.Value).ToList();
+            _dataLock.EnterReadLock();
+
+            List<Document> results = _data.Where(e => queryItems.All(query => query.Match(e.Value))).Select(e => e.Value).ToList();
+
+            _dataLock.ExitReadLock();
+
+            return results;
         }
 
         /// <summary>
@@ -147,10 +158,15 @@ namespace Database.Storage
             StringBuilder builder = new StringBuilder();
             builder.AppendLine(_start.ToString());
             builder.AppendLine(_end.ToString());
+
+            _dataLock.EnterReadLock();
+
             foreach (var item in _data)
             {
                 builder.AppendLine(item.Value.ToJson());
             }
+
+            _dataLock.ExitReadLock();
 
             File.WriteAllText(GetFilename(), builder.ToString());
         }
@@ -161,14 +177,21 @@ namespace Database.Storage
         /// <returns>The new chunk created from the split.</returns>
         public DatabaseChunk Split()
         {
-            _changed = true;
-            var newData = new ConcurrentDictionary<ObjectId, Document>(_data.OrderBy(e => e.Key).Skip(_data.Count / 2).ToDictionary(e => e.Key, e => e.Value));
-            _data = new ConcurrentDictionary<ObjectId, Document>(_data.OrderBy(e => e.Key).Take(_data.Count / 2));
+            _dataLock.EnterWriteLock();
+
+            var newData = new SortedDictionary<ObjectId, Document>(_data.Skip(_data.Count / 2).ToDictionary(e => e.Key, e => e.Value));
+            _data = new SortedDictionary<ObjectId, Document>(_data.Take(_data.Count / 2).ToDictionary(e => e.Key, e => e.Value));
 
             var oldEnd = _end;
             _end = new ChunkMarker(newData.Keys.Min().ToString());
 
-            return new DatabaseChunk(_end, oldEnd, newData);
+            DatabaseChunk newChunk = new DatabaseChunk(_end, oldEnd, newData);
+
+            _changed = true;
+
+            _dataLock.ExitWriteLock();
+
+            return newChunk;
         }
 
         /// <summary>
@@ -179,8 +202,23 @@ namespace Database.Storage
         /// <returns>A value indicating whether the add was successful or if the key already existed.</returns>
         public bool TryAdd(ObjectId id, Document document)
         {
+            _dataLock.EnterWriteLock();
+
+            bool success = true;
+            try
+            {
+                _data.Add(id, document);
+            }
+            catch (ArgumentException)
+            {
+                success = false;
+            }
+
             _changed = true;
-            return _data.TryAdd(id, document);
+
+            _dataLock.ExitWriteLock();
+
+            return success;
         }
 
         /// <summary>
@@ -191,8 +229,13 @@ namespace Database.Storage
         /// <returns>True if the get was successful, otherwise false.</returns>
         public bool TryGet(ObjectId id, out Document value)
         {
-            _changed = true;
-            return _data.TryGetValue(id, out value);
+            _dataLock.EnterReadLock();
+
+            bool success = _data.TryGetValue(id, out value);
+
+            _dataLock.ExitReadLock();
+
+            return success;
         }
 
         /// <summary>
@@ -203,8 +246,18 @@ namespace Database.Storage
         /// <returns>True if the remove was successful, otherwise false.</returns>
         public bool TryRemove(ObjectId id, out Document removed)
         {
-            _changed = true;
-            return _data.TryRemove(id, out removed);
+            _dataLock.EnterWriteLock();
+
+            bool success = _data.TryGetValue(id, out removed);
+            if (success)
+            {
+                _data.Remove(id);
+                _changed = true;
+            }
+
+            _dataLock.ExitWriteLock();
+
+            return success;
         }
 
         /// <summary>
@@ -216,8 +269,22 @@ namespace Database.Storage
         /// <returns>True if the update was successful, otherwise false.</returns>
         public bool TryUpdate(ObjectId id, Document newValue, Document oldValue)
         {
-            _changed = true;
-            return _data.TryUpdate(id, newValue, oldValue);
+            _dataLock.EnterWriteLock();
+
+            Document currentValue;
+            bool success = _data.TryGetValue(id, out currentValue);
+            if (success && currentValue.Equals(oldValue))
+            {
+                _changed = true;
+                _data[id] = newValue;
+            }
+            else
+            {
+                success = false;
+            }
+
+            _dataLock.ExitWriteLock();
+            return success;
         }
 
         /// <summary>
