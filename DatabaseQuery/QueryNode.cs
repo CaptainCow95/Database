@@ -34,14 +34,14 @@ namespace Database.Query
         private List<NodeDefinition> _controllerNodes;
 
         /// <summary>
+        /// The thread that handles reconnecting to the controller nodes.
+        /// </summary>
+        private Thread _reconnectionThread;
+
+        /// <summary>
         /// The settings of the query node.
         /// </summary>
         private QueryNodeSettings _settings;
-
-        /// <summary>
-        /// The thread that attempts to reconnect to the necessary nodes.
-        /// </summary>
-        private Thread _updateThread;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="QueryNode"/> class.
@@ -66,40 +66,13 @@ namespace Database.Query
 
             _controllerNodes = NodeDefinition.ParseConnectionString(_settings.ConnectionString);
 
-            foreach (var def in _controllerNodes)
+            if (_controllerNodes.Any(def => !ConnectToController(def)))
             {
-                Message message = new Message(def, new JoinAttempt(NodeType.Query, _settings.NodeName, _settings.Port, _settings.ToString()), true)
-                {
-                    SendWithoutConfirmation = true
-                };
-
-                SendMessage(message);
-                message.BlockUntilDone();
-
-                if (message.Success)
-                {
-                    if (message.Response.Data is JoinFailure)
-                    {
-                        Logger.Log("Failed to join controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
-                        AfterStop();
-                        return;
-                    }
-
-                    // success
-                    JoinSuccess successData = (JoinSuccess)message.Response.Data;
-                    Connections[def].ConnectionEstablished(def, NodeType.Controller);
-                    if (successData.Data["PrimaryController"].ValueAsBoolean)
-                    {
-                        Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
-                        Primary = message.Address;
-                    }
-
-                    SendMessage(new Message(message.Response, new Acknowledgement(), false));
-                }
+                return;
             }
 
-            _updateThread = new Thread(UpdateThreadRun);
-            _updateThread.Start();
+            _reconnectionThread = new Thread(ReconnectionThreadRun);
+            _reconnectionThread.Start();
 
             while (Running)
             {
@@ -153,6 +126,11 @@ namespace Database.Query
                 var response = new Message(message, new JoinSuccess(new Document()), true);
                 SendMessage(response);
                 response.BlockUntilDone();
+            }
+            else if (message.Data is PrimaryAnnouncement)
+            {
+                Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
+                Primary = message.Address;
             }
             else if (message.Data is NodeList)
             {
@@ -221,6 +199,45 @@ namespace Database.Query
         /// <inheritdoc />
         protected override void PrimaryChanged()
         {
+        }
+
+        /// <summary>
+        /// Connects to the specified controller.
+        /// </summary>
+        /// <param name="def">The controller to connect to.</param>
+        /// <returns>True if the connection failed or return a JoinSuccess, false if it returned a JoinFailure.</returns>
+        private bool ConnectToController(NodeDefinition def)
+        {
+            Message message = new Message(def, new JoinAttempt(NodeType.Query, _settings.NodeName, _settings.Port, _settings.ToString()), true)
+            {
+                SendWithoutConfirmation = true
+            };
+
+            SendMessage(message);
+            message.BlockUntilDone();
+
+            if (message.Success)
+            {
+                if (message.Response.Data is JoinFailure)
+                {
+                    Logger.Log("Failed to join controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
+                    AfterStop();
+                    return false;
+                }
+
+                // success
+                JoinSuccess successData = (JoinSuccess)message.Response.Data;
+                Connections[def].ConnectionEstablished(def, NodeType.Controller);
+                if (successData.Data["PrimaryController"].ValueAsBoolean)
+                {
+                    Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
+                    Primary = message.Address;
+                }
+
+                SendMessage(new Message(message.Response, new Acknowledgement(), false));
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -463,13 +480,13 @@ namespace Database.Query
         }
 
         /// <summary>
-        /// Attempts to reconnect to the necessary nodes.
+        /// Runs the thread that handles reconnecting to the controllers.
         /// </summary>
-        private void UpdateThreadRun()
+        private void ReconnectionThreadRun()
         {
             Random rand = new Random();
 
-            int timeToWait = rand.Next(30, 120);
+            int timeToWait = rand.Next(30, 60);
             int i = 0;
             while (i < timeToWait && Running)
             {
@@ -479,52 +496,22 @@ namespace Database.Query
 
             while (Running)
             {
-                timeToWait = rand.Next(30, 120);
+                var connections = GetConnectedNodes();
+                foreach (var def in _controllerNodes)
+                {
+                    if (!connections.Any(e => Equals(e.Item1, def)))
+                    {
+                        Logger.Log("Attempting to reconnect to " + def.ConnectionName, LogLevel.Info);
+                        ConnectToController(def);
+                    }
+                }
+
+                timeToWait = rand.Next(30, 60);
                 i = 0;
                 while (i < timeToWait && Running)
                 {
                     Thread.Sleep(1000);
                     ++i;
-                }
-
-                var connections = GetConnectedNodes();
-                foreach (var def in _controllerNodes.Concat(_connectedStorageNodes).ToList())
-                {
-                    if (!connections.Any(e => Equals(e.Item1, def)))
-                    {
-                        Logger.Log("Attempting to reconnect to " + def.ConnectionName, LogLevel.Info);
-
-                        Message message = new Message(def, new JoinAttempt(NodeType.Query, _settings.NodeName, _settings.Port, _settings.ToString()), true)
-                        {
-                            SendWithoutConfirmation = true
-                        };
-
-                        SendMessage(message);
-                        message.BlockUntilDone();
-
-                        if (message.Success)
-                        {
-                            if (message.Response.Data is JoinFailure)
-                            {
-                                Logger.Log("Failed to join controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
-                                AfterStop();
-                                return;
-                            }
-
-                            // success
-                            JoinSuccess successData = (JoinSuccess)message.Response.Data;
-                            Connections[def].ConnectionEstablished(def, NodeType.Controller);
-
-                            // If it is a controller and is the primary controller.
-                            if (successData.Data.ContainsKey("PrimaryController") && successData.Data["PrimaryController"].ValueAsBoolean)
-                            {
-                                Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
-                                Primary = message.Address;
-                            }
-
-                            SendMessage(new Message(message.Response, new Acknowledgement(), false));
-                        }
-                    }
                 }
             }
         }

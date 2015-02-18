@@ -29,7 +29,7 @@ namespace Database.Common.Messages
         /// </summary>
         /// <param name="data">The data to read from.</param>
         /// <param name="index">The index at which to start reading from.</param>
-        public NodeList(byte[] data, int index)
+        internal NodeList(byte[] data, int index)
         {
             _nodes = ByteArrayHelper.ToString(data, ref index).Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
         }

@@ -40,7 +40,7 @@ namespace Database.Common.Messages
         /// </summary>
         /// <param name="data">The data to read from.</param>
         /// <param name="index">The index at which to start reading from.</param>
-        public ChunkTransfer(byte[] data, int index)
+        internal ChunkTransfer(byte[] data, int index)
         {
             string node = ByteArrayHelper.ToString(data, ref index);
             _node = new NodeDefinition(node.Split(':')[0], int.Parse(node.Split(':')[1]));

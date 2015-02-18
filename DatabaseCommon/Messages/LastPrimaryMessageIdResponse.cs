@@ -19,7 +19,7 @@
         /// </summary>
         /// <param name="data">The data to read from.</param>
         /// <param name="index">The index at which to start reading from.</param>
-        public LastPrimaryMessageIdResponse(byte[] data, int index)
+        internal LastPrimaryMessageIdResponse(byte[] data, int index)
         {
             LastMessageId = ByteArrayHelper.ToUInt32(data, ref index);
         }

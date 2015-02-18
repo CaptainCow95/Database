@@ -88,6 +88,12 @@ namespace Database.Common.Messages
                 case MessageType.ChunkDataResponse:
                     return new ChunkDataResponse(data, index);
 
+                case MessageType.ChunkListRequest:
+                    return new ChunkListRequest();
+
+                case MessageType.ChunkListResponse:
+                    return new ChunkListResponse(data, index);
+
                 default:
                     throw new Exception("Message type id not found: " + messageTypeIdConverted);
             }

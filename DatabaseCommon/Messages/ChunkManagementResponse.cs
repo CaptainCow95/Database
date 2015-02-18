@@ -24,7 +24,7 @@
         /// </summary>
         /// <param name="data">The data to read from.</param>
         /// <param name="index">The index at which to start reading from.</param>
-        public ChunkManagementResponse(byte[] data, int index)
+        internal ChunkManagementResponse(byte[] data, int index)
         {
             _result = ByteArrayHelper.ToBoolean(data, ref index);
         }

@@ -149,6 +149,21 @@ namespace Database.Storage
         }
 
         /// <summary>
+        /// Processes a <see cref="ChunkListRequest"/> message.
+        /// </summary>
+        /// <param name="message">The message to response to.</param>
+        /// <param name="request">The <see cref="ChunkListRequest"/> data.</param>
+        public void ProcessChunkListRequest(Message message, ChunkListRequest request)
+        {
+            List<ChunkDefinition> defs = new List<ChunkDefinition>();
+            _lock.EnterReadLock();
+            defs.AddRange(_chunks.Select(e => new ChunkDefinition(e.Start, e.End, _node.Self)));
+            _lock.ExitReadLock();
+            ChunkListResponse response = new ChunkListResponse(defs);
+            _node.SendDatabaseMessage(new Message(message, response, false));
+        }
+
+        /// <summary>
         /// Processes an operation.
         /// </summary>
         /// <param name="operation">The message representing the operation.</param>
@@ -216,6 +231,105 @@ namespace Database.Storage
         public void Shutdown()
         {
             _running = false;
+        }
+
+        /// <summary>
+        /// Attempts to merge the database chunks.
+        /// </summary>
+        private void AttemptMerge()
+        {
+            BaseMessageData message = null;
+            _checkForMerge = false;
+
+            _lock.EnterUpgradeableReadLock();
+
+            for (int i = 0; i < _chunks.Count - 1; ++i)
+            {
+                if (_chunks[i].Count + _chunks[i + 1].Count < _maxChunkItemCount / 2 &&
+                    Equals(_chunks[i].End, _chunks[i + 1].Start))
+                {
+                    _checkForMerge = true;
+
+                    if (_node.Primary == null)
+                    {
+                        break;
+                    }
+
+                    Message canMerge = new Message(_node.Primary, new ChunkManagementRequest(), true);
+                    _node.SendDatabaseMessage(canMerge);
+                    canMerge.BlockUntilDone();
+                    if (canMerge.Success && ((ChunkManagementResponse)canMerge.Response.Data).Result)
+                    {
+                        _lock.EnterWriteLock();
+
+                        // Merging two chunks, do the merge and then alert the primary controller before doing anything else.
+                        _chunks[i].Merge(_chunks[i + 1]);
+                        _chunks.RemoveAt(i + 1);
+                        message = new ChunkMerge(_chunks[i].Start, _chunks[i].End);
+
+                        _lock.ExitWriteLock();
+                    }
+
+                    break;
+                }
+            }
+
+            _lock.ExitUpgradeableReadLock();
+
+            if (message != null)
+            {
+                Message sentMessage = new Message(_node.Primary, message, true);
+                _node.SendDatabaseMessage(sentMessage);
+                sentMessage.BlockUntilDone();
+            }
+        }
+
+        /// <summary>
+        /// Attempts to split the database chunks.
+        /// </summary>
+        private void AttemptSplit()
+        {
+            BaseMessageData message = null;
+            _checkForSplit = false;
+
+            _lock.EnterUpgradeableReadLock();
+
+            for (int i = 0; i < _chunks.Count; ++i)
+            {
+                if (_chunks[i].Count > _maxChunkItemCount)
+                {
+                    _checkForSplit = true;
+                    if (_node.Primary == null)
+                    {
+                        break;
+                    }
+
+                    Message canSplit = new Message(_node.Primary, new ChunkManagementRequest(), true);
+                    _node.SendDatabaseMessage(canSplit);
+                    canSplit.BlockUntilDone();
+                    if (canSplit.Success && ((ChunkManagementResponse)canSplit.Response.Data).Result)
+                    {
+                        _lock.EnterWriteLock();
+
+                        // Spliting a chunk, do the split and then alert the primary controller before doing anything else.
+                        _chunks.Insert(i + 1, _chunks[i].Split());
+                        message = new ChunkSplit(_chunks[i].Start, _chunks[i].End, _chunks[i + 1].Start, _chunks[i + 1].End);
+
+                        _lock.ExitWriteLock();
+                    }
+
+                    break;
+                }
+            }
+
+            _lock.ExitUpgradeableReadLock();
+
+            if (message != null)
+            {
+                Message sentMessage = new Message(_node.Primary, message, true);
+                _node.SendDatabaseMessage(sentMessage);
+                sentMessage.BlockUntilDone();
+            }
         }
 
         /// <summary>
@@ -401,93 +515,17 @@ namespace Database.Storage
         {
             while (_running)
             {
-                BaseMessageData message = null;
                 if (_checkForMerge)
                 {
-                    _checkForMerge = false;
-
-                    _lock.EnterUpgradeableReadLock();
-
-                    for (int i = 0; i < _chunks.Count - 1; ++i)
-                    {
-                        if (_chunks[i].Count + _chunks[i + 1].Count < _maxChunkItemCount / 2 && Equals(_chunks[i].End, _chunks[i + 1].Start))
-                        {
-                            _checkForMerge = true;
-
-                            if (_node.Primary == null)
-                            {
-                                break;
-                            }
-
-                            Message canMerge = new Message(_node.Primary, new ChunkManagementRequest(), true);
-                            _node.SendDatabaseMessage(canMerge);
-                            canMerge.BlockUntilDone();
-                            if (canMerge.Success && ((ChunkManagementResponse)canMerge.Response.Data).Result)
-                            {
-                                _lock.EnterWriteLock();
-
-                                // Merging two chunks, do the merge and then alert the primary controller before doing anything else.
-                                _chunks[i].Merge(_chunks[i + 1]);
-                                _chunks.RemoveAt(i + 1);
-                                message = new ChunkMerge(_chunks[i].Start, _chunks[i].End);
-
-                                _lock.ExitWriteLock();
-                            }
-
-                            break;
-                        }
-                    }
-
-                    _lock.ExitUpgradeableReadLock();
+                    AttemptMerge();
                 }
 
-                if (_checkForSplit && message == null)
+                if (_checkForSplit)
                 {
-                    _checkForSplit = false;
-
-                    _lock.EnterUpgradeableReadLock();
-
-                    for (int i = 0; i < _chunks.Count; ++i)
-                    {
-                        if (_chunks[i].Count > _maxChunkItemCount)
-                        {
-                            _checkForSplit = true;
-                            if (_node.Primary == null)
-                            {
-                                break;
-                            }
-
-                            Message canSplit = new Message(_node.Primary, new ChunkManagementRequest(), true);
-                            _node.SendDatabaseMessage(canSplit);
-                            canSplit.BlockUntilDone();
-                            if (canSplit.Success && ((ChunkManagementResponse)canSplit.Response.Data).Result)
-                            {
-                                _lock.EnterWriteLock();
-
-                                // Spliting a chunk, do the split and then alert the primary controller before doing anything else.
-                                _chunks.Insert(i + 1, _chunks[i].Split());
-                                message = new ChunkSplit(_chunks[i].Start, _chunks[i].End, _chunks[i + 1].Start, _chunks[i + 1].End);
-
-                                _lock.ExitWriteLock();
-                            }
-
-                            break;
-                        }
-                    }
-
-                    _lock.ExitUpgradeableReadLock();
+                    AttemptSplit();
                 }
 
-                if (message != null)
-                {
-                    if (_node.Primary != null)
-                    {
-                        Message sentMessage = new Message(_node.Primary, message, true);
-                        _node.SendDatabaseMessage(sentMessage);
-                        sentMessage.BlockUntilDone();
-                    }
-                }
-                else
+                if (!_checkForMerge && !_checkForSplit)
                 {
                     // No split or merge occurred, so sleep until the next run.
                     for (int i = 0; i < MaintenanceRunTime && _running; ++i)

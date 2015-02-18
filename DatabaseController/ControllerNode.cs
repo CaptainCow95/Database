@@ -69,7 +69,7 @@ namespace Database.Controller
         private NodeDefinition _nodeTransferingChunk = null;
 
         /// <summary>
-        /// The thread that handles reconnecting to other controller nodes.
+        /// The thread that handles reconnecting to the other controller nodes.
         /// </summary>
         private Thread _reconnectionThread;
 
@@ -310,6 +310,8 @@ namespace Database.Controller
                     _chunkList.Clear();
                     _chunkList.AddRange(((ChunkListUpdate)message.Data).ChunkList);
                 }
+
+                SendMessage(new Message(message, new Acknowledgement(), false));
             }
             else if (message.Data is ChunkSplit)
             {
@@ -476,6 +478,56 @@ namespace Database.Controller
         }
 
         /// <summary>
+        /// Called when this node is to become the primary.
+        /// </summary>
+        private void BecomePrimary()
+        {
+            lock (_balancingLockObject)
+            {
+                _balancing = BalancingState.ChunkManagement;
+            }
+
+            Primary = Self;
+            foreach (var def in GetConnectedNodes().Select(e => e.Item1))
+            {
+                if (Equals(def, Self))
+                {
+                    continue;
+                }
+
+                SendMessage(new Message(def, new PrimaryAnnouncement(), false));
+            }
+
+            SendQueryNodeConnectionMessage();
+            SendStorageNodeConnectionMessage();
+
+            foreach (var def in GetConnectedNodes().Where(e => e.Item2 == NodeType.Storage).Select(e => e.Item1))
+            {
+                Message message = new Message(def, new ChunkListRequest(), true);
+                SendMessage(message);
+                message.BlockUntilDone();
+                if (message.Success)
+                {
+                    ChunkListResponse response = (ChunkListResponse)message.Response.Data;
+                    foreach (var item in response.Chunks)
+                    {
+                        if (!_chunkList.Any(e => e.Start.Equals(item.Start)))
+                        {
+                            _chunkList.Add(item);
+                        }
+                    }
+                }
+            }
+
+            TryCreateDatabase();
+
+            lock (_balancingLockObject)
+            {
+                _balancing = BalancingState.None;
+            }
+        }
+
+        /// <summary>
         /// Connects to a controller.
         /// </summary>
         /// <param name="target">The target controller to try to connect to.</param>
@@ -633,10 +685,7 @@ namespace Database.Controller
 
                         var responseData = new Document();
                         responseData["PrimaryController"] = new DocumentEntry("PrimaryController", DocumentEntryType.Boolean, Equals(Primary, Self));
-                        if (Equals(Primary, Self))
-                        {
-                            responseData["MaxChunkItemCount"] = new DocumentEntry("MaxChunkItemCount", DocumentEntryType.Integer, _settings.MaxChunkItemCount);
-                        }
+                        responseData["MaxChunkItemCount"] = new DocumentEntry("MaxChunkItemCount", DocumentEntryType.Integer, _settings.MaxChunkItemCount);
 
                         Message response = new Message(message, new JoinSuccess(responseData), true)
                         {
@@ -655,43 +704,7 @@ namespace Database.Controller
 
                             SendStorageNodeConnectionMessage();
 
-                            bool updatedChunkList = false;
-                            lock (_chunkList)
-                            {
-                                if (Equals(Primary, Self) && _chunkList.Count == 0)
-                                {
-                                    _chunkList.Add(new ChunkDefinition(new ChunkMarker(ChunkMarkerType.Start), new ChunkMarker(ChunkMarkerType.End), nodeDef));
-                                    updatedChunkList = true;
-                                }
-                            }
-
-                            if (updatedChunkList)
-                            {
-                                bool success = false;
-                                foreach (var storageNode in GetConnectedNodes().Where(e => e.Item2 == NodeType.Storage).Select(e => e.Item1))
-                                {
-                                    Message storageNodeMessage = new Message(storageNode, new DatabaseCreate(), true);
-                                    SendMessage(storageNodeMessage);
-                                    storageNodeMessage.BlockUntilDone();
-                                    success = storageNodeMessage.Success;
-                                    if (success)
-                                    {
-                                        break;
-                                    }
-                                }
-
-                                if (!success)
-                                {
-                                    lock (_chunkList)
-                                    {
-                                        _chunkList.Clear();
-                                    }
-                                }
-                                else
-                                {
-                                    SendChunkList();
-                                }
-                            }
+                            TryCreateDatabase();
                         }
                     }
 
@@ -778,16 +791,7 @@ namespace Database.Controller
                 else
                 {
                     Logger.Log("Vote successful, becoming the primary controller.", LogLevel.Info);
-                    Primary = Self;
-                    foreach (var def in _controllerNodes)
-                    {
-                        if (Equals(def, Self))
-                        {
-                            continue;
-                        }
-
-                        SendMessage(new Message(def, new PrimaryAnnouncement(), false));
-                    }
+                    BecomePrimary();
                 }
             }
         }
@@ -880,7 +884,7 @@ namespace Database.Controller
         {
             Random rand = new Random();
 
-            int timeToWait = rand.Next(30, 120);
+            int timeToWait = rand.Next(30, 60);
             int i = 0;
             while (i < timeToWait && Running)
             {
@@ -890,14 +894,6 @@ namespace Database.Controller
 
             while (Running)
             {
-                timeToWait = rand.Next(30, 120);
-                i = 0;
-                while (i < timeToWait && Running)
-                {
-                    Thread.Sleep(1000);
-                    ++i;
-                }
-
                 var connections = GetConnectedNodes();
                 foreach (var def in _controllerNodes)
                 {
@@ -917,6 +913,14 @@ namespace Database.Controller
                 {
                     Logger.Log("Initiating voting.", LogLevel.Info);
                     InitiateVoting();
+                }
+
+                timeToWait = rand.Next(30, 60);
+                i = 0;
+                while (i < timeToWait && Running)
+                {
+                    Thread.Sleep(1000);
+                    ++i;
                 }
             }
         }
@@ -999,6 +1003,42 @@ namespace Database.Controller
                 {
                     SendMessage(new Message(item.Item1, data, false));
                 }
+            }
+        }
+
+        /// <summary>
+        /// Tries to create the database if it doesn't already exist.
+        /// </summary>
+        private void TryCreateDatabase()
+        {
+            bool success = false;
+            lock (_chunkList)
+            {
+                if (Equals(Primary, Self) && _chunkList.Count == 0)
+                {
+                    foreach (var storageNode in GetConnectedNodes().Where(e => e.Item2 == NodeType.Storage).Select(e => e.Item1))
+                    {
+                        Message storageNodeMessage = new Message(storageNode, new DatabaseCreate(), true);
+                        SendMessage(storageNodeMessage);
+                        storageNodeMessage.BlockUntilDone();
+                        success = storageNodeMessage.Success;
+                        if (success)
+                        {
+                            _chunkList.Add(new ChunkDefinition(new ChunkMarker(ChunkMarkerType.Start), new ChunkMarker(ChunkMarkerType.End), storageNode));
+                            break;
+                        }
+                    }
+
+                    if (!success)
+                    {
+                        _chunkList.Clear();
+                    }
+                }
+            }
+
+            if (success)
+            {
+                SendChunkList();
             }
         }
     }

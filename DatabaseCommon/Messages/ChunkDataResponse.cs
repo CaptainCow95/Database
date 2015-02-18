@@ -32,7 +32,7 @@ namespace Database.Common.Messages
         /// </summary>
         /// <param name="data">The data to read from.</param>
         /// <param name="index">The index at which to start reading from.</param>
-        public ChunkDataResponse(byte[] data, int index)
+        internal ChunkDataResponse(byte[] data, int index)
         {
             _jsonData = ByteArrayHelper.ToString(data, ref index);
         }

@@ -26,7 +26,7 @@ namespace Database.Common.Messages
         /// </summary>
         /// <param name="data">The data to read from.</param>
         /// <param name="index">The index at which to start reading from.</param>
-        public JoinSuccess(byte[] data, int index)
+        internal JoinSuccess(byte[] data, int index)
         {
             _data = new Document(ByteArrayHelper.ToString(data, ref index));
         }

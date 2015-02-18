@@ -33,7 +33,7 @@ namespace Database.Common.Messages
         /// </summary>
         /// <param name="data">The data to read from.</param>
         /// <param name="index">The index at which to start reading from.</param>
-        public ChunkDataRequest(byte[] data, int index)
+        internal ChunkDataRequest(byte[] data, int index)
         {
             _start = ChunkMarker.ConvertFromString(ByteArrayHelper.ToString(data, ref index));
             _end = ChunkMarker.ConvertFromString(ByteArrayHelper.ToString(data, ref index));

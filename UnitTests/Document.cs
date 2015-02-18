@@ -3,13 +3,19 @@ using DataOp = Database.Common.DataOperation;
 
 namespace UnitTests
 {
+    /// <summary>
+    /// Provides unit tests for the Document class.
+    /// </summary>
     [TestFixture]
     public class Document
     {
+        /// <summary>
+        /// Tests creating a document with a large, but valid, JSON string.
+        /// </summary>
         [Test]
         public void AllJsonTypes()
         {
-            const string json = "{\"int\":10,\"string\":\"test\",\"bool\":true,\"float\":5.345,\"array\":[10,\"test\",{\"key\":\"value\"}],\"document\":{\"key\":\"value\"}}";
+            string json = "{\"int\":10,\"string\":\"test\",\"bool\":true,\"float\":5.345,\"array\":[10,\"test\",{\"key\":\"value\"}],\"document\":{\"key\":\"value\"}}";
             DataOp.Document doc = new DataOp.Document(json);
             Assert.AreEqual(true, doc.Valid, "The document is not valid.");
             Assert.AreEqual(6, doc.Count, "The document does not contain the right number of items.");
@@ -51,6 +57,9 @@ namespace UnitTests
             Assert.AreEqual("value", doc["document"].ValueAsDocument["key"].ValueAsString, "The value at key \"key\" in the document at key \"document\" was not \"value\".");
         }
 
+        /// <summary>
+        /// Tests creating a document with an empty constructor.
+        /// </summary>
         [Test]
         public void EmptyConstructor()
         {
@@ -61,6 +70,9 @@ namespace UnitTests
             Assert.AreEqual("{}", doc.ToJson(), "The json is incorrect.");
         }
 
+        /// <summary>
+        /// Tests creating a document with empty JSON.
+        /// </summary>
         [Test]
         public void EmptyJson()
         {

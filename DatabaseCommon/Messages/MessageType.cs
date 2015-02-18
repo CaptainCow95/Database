@@ -118,6 +118,16 @@
         /// <summary>
         /// A <see cref="ChunkDataResponse"/> message.
         /// </summary>
-        ChunkDataResponse = 22
+        ChunkDataResponse = 22,
+
+        /// <summary>
+        /// A <see cref="ChunkListRequest"/> message.
+        /// </summary>
+        ChunkListRequest = 23,
+
+        /// <summary>
+        /// A <see cref="ChunkListResponse"/> message.
+        /// </summary>
+        ChunkListResponse = 24,
     }
 }

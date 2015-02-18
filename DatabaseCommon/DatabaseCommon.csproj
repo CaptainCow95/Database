@@ -73,6 +73,8 @@
     <Compile Include="Messages\Acknowledgement.cs" />
     <Compile Include="Messages\ChunkDataRequest.cs" />
     <Compile Include="Messages\ChunkDataResponse.cs" />
+    <Compile Include="Messages\ChunkListRequest.cs" />
+    <Compile Include="Messages\ChunkListResponse.cs" />
     <Compile Include="Messages\ChunkManagementRequest.cs" />
     <Compile Include="Messages\ChunkManagementResponse.cs" />
     <Compile Include="Messages\ChunkTransfer.cs" />

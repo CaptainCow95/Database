@@ -68,7 +68,7 @@ namespace Database.Controller
                                     .Select(e => e.Item1.ConnectionName))
                         {
                             page.Append("<li>" + item);
-                            if (Equals(item, _node.Primary.ConnectionName))
+                            if (_node.Primary != null && Equals(item, _node.Primary.ConnectionName))
                             {
                                 page.Append(" <b>(Primary)</b>");
                             }

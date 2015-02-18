@@ -24,14 +24,14 @@ namespace Database.Storage
         private List<NodeDefinition> _controllerNodes;
 
         /// <summary>
+        /// The thread that handles reconnecting to the controller nodes.
+        /// </summary>
+        private Thread _reconnectionThread;
+
+        /// <summary>
         /// The settings of the storage node.
         /// </summary>
         private StorageNodeSettings _settings;
-
-        /// <summary>
-        /// The thread that attempts to reconnect to the necessary nodes.
-        /// </summary>
-        private Thread _updateThread;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="StorageNode"/> class.
@@ -57,43 +57,13 @@ namespace Database.Storage
 
             _controllerNodes = NodeDefinition.ParseConnectionString(_settings.ConnectionString);
 
-            foreach (var def in _controllerNodes)
+            if (_controllerNodes.Any(def => !ConnectToController(def)))
             {
-                Message message = new Message(def, new JoinAttempt(NodeType.Storage, _settings.NodeName, _settings.Port, _settings.ToString()), true)
-                {
-                    SendWithoutConfirmation = true
-                };
-
-                SendMessage(message);
-                message.BlockUntilDone();
-
-                if (message.Success)
-                {
-                    if (message.Response.Data is JoinFailure)
-                    {
-                        Logger.Log("Failed to join controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
-                        AfterStop();
-                        _database.Shutdown();
-                        return;
-                    }
-
-                    // success
-                    JoinSuccess successData = (JoinSuccess)message.Response.Data;
-                    Connections[def].ConnectionEstablished(def, NodeType.Controller);
-                    if (successData.Data["PrimaryController"].ValueAsBoolean)
-                    {
-                        Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
-                        Primary = message.Address;
-
-                        _database.SetMaxChunkItemCount(successData.Data["MaxChunkItemCount"].ValueAsInteger);
-                    }
-
-                    SendMessage(new Message(message.Response, new Acknowledgement(), false));
-                }
+                return;
             }
 
-            _updateThread = new Thread(UpdateThreadRun);
-            _updateThread.Start();
+            _reconnectionThread = new Thread(ReconnectionThreadRun);
+            _reconnectionThread.Start();
 
             while (Running)
             {
@@ -118,8 +88,8 @@ namespace Database.Storage
         {
             if (Equals(Primary, node))
             {
-                Logger.Log("Primary controller unreachable.", LogLevel.Info);
                 Primary = null;
+                Logger.Log("Primary controller unreachable.", LogLevel.Info);
             }
         }
 
@@ -156,6 +126,11 @@ namespace Database.Storage
                 SendMessage(response);
                 response.BlockUntilDone();
             }
+            else if (message.Data is PrimaryAnnouncement)
+            {
+                Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
+                Primary = message.Address;
+            }
             else if (message.Data is DataOperation)
             {
                 DataOperationResult result;
@@ -189,11 +164,94 @@ namespace Database.Storage
             {
                 _database.ProcessChunkDataRequest((ChunkDataRequest)message.Data, message);
             }
+            else if (message.Data is ChunkListRequest)
+            {
+                _database.ProcessChunkListRequest(message, (ChunkListRequest)message.Data);
+            }
         }
 
         /// <inheritdoc />
         protected override void PrimaryChanged()
         {
+        }
+
+        /// <summary>
+        /// Connects to the specified controller.
+        /// </summary>
+        /// <param name="def">The controller to connect to.</param>
+        /// <returns>True if the connection failed or return a JoinSuccess, false if it returned a JoinFailure.</returns>
+        private bool ConnectToController(NodeDefinition def)
+        {
+            Message message = new Message(def, new JoinAttempt(NodeType.Storage, _settings.NodeName, _settings.Port, _settings.ToString()), true)
+            {
+                SendWithoutConfirmation = true
+            };
+
+            SendMessage(message);
+            message.BlockUntilDone();
+
+            if (message.Success)
+            {
+                if (message.Response.Data is JoinFailure)
+                {
+                    Logger.Log("Failed to join controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
+                    AfterStop();
+                    _database.Shutdown();
+                    return false;
+                }
+
+                // success
+                JoinSuccess successData = (JoinSuccess)message.Response.Data;
+                Connections[def].ConnectionEstablished(def, NodeType.Controller);
+                if (successData.Data["PrimaryController"].ValueAsBoolean)
+                {
+                    Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
+                    Primary = message.Address;
+                }
+
+                _database.SetMaxChunkItemCount(successData.Data["MaxChunkItemCount"].ValueAsInteger);
+
+                SendMessage(new Message(message.Response, new Acknowledgement(), false));
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Runs the thread that handles reconnecting to the controllers.
+        /// </summary>
+        private void ReconnectionThreadRun()
+        {
+            Random rand = new Random();
+
+            int timeToWait = rand.Next(30, 60);
+            int i = 0;
+            while (i < timeToWait && Running)
+            {
+                Thread.Sleep(1000);
+                ++i;
+            }
+
+            while (Running)
+            {
+                var connections = GetConnectedNodes();
+                foreach (var def in _controllerNodes)
+                {
+                    if (!connections.Any(e => Equals(e.Item1, def)))
+                    {
+                        Logger.Log("Attempting to reconnect to " + def.ConnectionName, LogLevel.Info);
+                        ConnectToController(def);
+                    }
+                }
+
+                timeToWait = rand.Next(30, 60);
+                i = 0;
+                while (i < timeToWait && Running)
+                {
+                    Thread.Sleep(1000);
+                    ++i;
+                }
+            }
         }
 
         /// <summary>
@@ -256,71 +314,6 @@ namespace Database.Storage
 
             SendMessage(new Message(Primary, new ChunkTransferComplete(true), false));
             Logger.Log("Chunk transfer complete.", LogLevel.Info);
-        }
-
-        /// <summary>
-        /// Attempts to reconnect to the necessary nodes.
-        /// </summary>
-        private void UpdateThreadRun()
-        {
-            Random rand = new Random();
-
-            int timeToWait = rand.Next(30, 120);
-            int i = 0;
-            while (i < timeToWait && Running)
-            {
-                Thread.Sleep(1000);
-                ++i;
-            }
-
-            while (Running)
-            {
-                timeToWait = rand.Next(30, 120);
-                i = 0;
-                while (i < timeToWait && Running)
-                {
-                    Thread.Sleep(1000);
-                    ++i;
-                }
-
-                var connections = GetConnectedNodes();
-                foreach (var def in _controllerNodes)
-                {
-                    if (!connections.Any(e => Equals(e.Item1, def)))
-                    {
-                        Logger.Log("Attempting to reconnect to " + def.ConnectionName, LogLevel.Info);
-
-                        Message message = new Message(def, new JoinAttempt(NodeType.Storage, _settings.NodeName, _settings.Port, _settings.ToString()), true)
-                        {
-                            SendWithoutConfirmation = true
-                        };
-
-                        SendMessage(message);
-                        message.BlockUntilDone();
-
-                        if (message.Success)
-                        {
-                            if (message.Response.Data is JoinFailure)
-                            {
-                                Logger.Log("Failed to join controllers: " + ((JoinFailure)message.Response.Data).Reason, LogLevel.Error);
-                                AfterStop();
-                                return;
-                            }
-
-                            // success
-                            JoinSuccess successData = (JoinSuccess)message.Response.Data;
-                            Connections[def].ConnectionEstablished(def, NodeType.Controller);
-                            if (successData.Data["PrimaryController"].ValueAsBoolean)
-                            {
-                                Logger.Log("Setting the primary controller to " + message.Address.ConnectionName, LogLevel.Info);
-                                Primary = message.Address;
-                            }
-
-                            SendMessage(new Message(message.Response, new Acknowledgement(), false));
-                        }
-                    }
-                }
-            }
         }
     }
 }
