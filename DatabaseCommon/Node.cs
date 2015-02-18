@@ -450,6 +450,21 @@ namespace Database.Common
 
                         _messageReceivedThreadPool.QueueWorkItem(ConnectionLostHandler, connection);
                     }
+
+                    lock (_waitingForResponses)
+                    {
+                        List<uint> messagesToRemove = new List<uint>();
+                        foreach (var item in _waitingForResponses)
+                        {
+                            if (item.Value.Item1.TimeoutTime < DateTime.UtcNow)
+                            {
+                                item.Value.Item1.Status = MessageStatus.ResponseTimeout;
+                                messagesToRemove.Add(item.Key);
+                            }
+                        }
+
+                        messagesToRemove.ForEach(e => _waitingForResponses.Remove(e));
+                    }
                 }
 
                 _connectionsLock.ExitWriteLock();

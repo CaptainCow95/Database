@@ -43,6 +43,11 @@
         /// <summary>
         /// The message failed to get a response before the connection was severed.
         /// </summary>
-        ResponseFailure
+        ResponseFailure,
+
+        /// <summary>
+        /// The message timed out while waiting for a response.
+        /// </summary>
+        ResponseTimeout
     }
 }

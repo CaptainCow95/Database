@@ -20,6 +20,11 @@ namespace Database.Common
         private static uint _nextId = 0;
 
         /// <summary>
+        /// The time at which the message will timeout.
+        /// </summary>
+        private readonly DateTime _timeoutTime;
+
+        /// <summary>
         /// The address where the message came from or will be sent to.
         /// </summary>
         private NodeDefinition _address;
@@ -70,13 +75,15 @@ namespace Database.Common
         /// <param name="address">The address the message is to be sent to.</param>
         /// <param name="data">The data to be sent in the message.</param>
         /// <param name="waitingForResponse">Whether the message is waiting for a response.</param>
-        public Message(NodeDefinition address, BaseMessageData data, bool waitingForResponse)
+        /// <param name="timeout">The number of seconds before the message times out. A value of 0 or less will never timeout.</param>
+        public Message(NodeDefinition address, BaseMessageData data, bool waitingForResponse, int timeout = 30)
         {
             _address = address;
             _data = data;
             _status = MessageStatus.Created;
             _id = GetNextId();
             _waitingForResponse = waitingForResponse;
+            _timeoutTime = timeout <= 0 ? DateTime.UtcNow.AddYears(5) : DateTime.UtcNow.AddSeconds(timeout);
         }
 
         /// <summary>
@@ -85,14 +92,11 @@ namespace Database.Common
         /// <param name="responseTo">The message this is in response to.</param>
         /// <param name="data">The data to be sent in the message.</param>
         /// <param name="waitingForResponse">Whether the message is waiting for a response.</param>
-        public Message(Message responseTo, BaseMessageData data, bool waitingForResponse)
+        /// <param name="timeout">The number of seconds before the message times out. A value of 0 or less will never timeout.</param>
+        public Message(Message responseTo, BaseMessageData data, bool waitingForResponse, int timeout = 30)
+            : this(responseTo.Address, data, waitingForResponse, timeout)
         {
-            _address = responseTo.Address;
             _inResponseTo = responseTo._id;
-            _data = data;
-            _status = MessageStatus.Created;
-            _id = GetNextId();
-            _waitingForResponse = waitingForResponse;
         }
 
         /// <summary>
@@ -189,6 +193,14 @@ namespace Database.Common
         internal Action<Message> ResponseCallback
         {
             get { return _responseCallback; }
+        }
+
+        /// <summary>
+        /// Gets the time at which the message will timeout.
+        /// </summary>
+        internal DateTime TimeoutTime
+        {
+            get { return _timeoutTime; }
         }
 
         /// <summary>
