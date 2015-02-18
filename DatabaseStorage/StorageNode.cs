@@ -168,6 +168,11 @@ namespace Database.Storage
             {
                 _database.ProcessChunkListRequest(message, (ChunkListRequest)message.Data);
             }
+            else if (message.Data is ChunkListUpdate)
+            {
+                _database.UpdateChunkList((ChunkListUpdate)message.Data);
+                SendMessage(new Message(message, new Acknowledgement(), false));
+            }
         }
 
         /// <inheritdoc />

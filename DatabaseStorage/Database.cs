@@ -3,6 +3,7 @@ using Database.Common.DataOperation;
 using Database.Common.Messages;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -61,6 +62,7 @@ namespace Database.Storage
         public Database(StorageNode node)
         {
             _node = node;
+            Load();
             var chunkMaintenanceThread = new Thread(RunMaintenanceThread);
             chunkMaintenanceThread.Start();
         }
@@ -109,6 +111,7 @@ namespace Database.Storage
             if (response.Success)
             {
                 _node.SendDatabaseMessage(new Message(response.Response, new Acknowledgement(), false));
+                chunk.Delete();
                 _chunks.Remove(chunk);
                 Logger.Log("Chunk move request succeeded.", LogLevel.Info);
             }
@@ -143,6 +146,8 @@ namespace Database.Storage
 
             _chunks.Add(chunk);
             _chunks.Sort();
+
+            chunk.Save();
 
             _lock.ExitWriteLock();
             Logger.Log("Chunk data added in " + timer.Elapsed.TotalSeconds + " seconds.", LogLevel.Info);
@@ -234,6 +239,19 @@ namespace Database.Storage
         }
 
         /// <summary>
+        /// Updates the database's chunk list.
+        /// </summary>
+        /// <param name="chunkListUpdate">The chunks to keep.</param>
+        internal void UpdateChunkList(ChunkListUpdate chunkListUpdate)
+        {
+            _lock.EnterWriteLock();
+
+            _chunks.RemoveAll(e => !chunkListUpdate.ChunkList.Any(f => Equals(e.Start, f.Start)));
+
+            _lock.ExitWriteLock();
+        }
+
+        /// <summary>
         /// Attempts to merge the database chunks.
         /// </summary>
         private void AttemptMerge()
@@ -263,8 +281,11 @@ namespace Database.Storage
                         _lock.EnterWriteLock();
 
                         // Merging two chunks, do the merge and then alert the primary controller before doing anything else.
+                        _chunks[i].Delete();
+                        _chunks[i + 1].Delete();
                         _chunks[i].Merge(_chunks[i + 1]);
                         _chunks.RemoveAt(i + 1);
+                        _chunks[i].Save();
                         message = new ChunkMerge(_chunks[i].Start, _chunks[i].End);
 
                         _lock.ExitWriteLock();
@@ -312,7 +333,10 @@ namespace Database.Storage
                         _lock.EnterWriteLock();
 
                         // Spliting a chunk, do the split and then alert the primary controller before doing anything else.
+                        _chunks[i].Delete();
                         _chunks.Insert(i + 1, _chunks[i].Split());
+                        _chunks[i].Save();
+                        _chunks[i + 1].Save();
                         message = new ChunkSplit(_chunks[i].Start, _chunks[i].End, _chunks[i + 1].Start, _chunks[i + 1].End);
 
                         _lock.ExitWriteLock();
@@ -357,6 +381,35 @@ namespace Database.Storage
             }
 
             return value;
+        }
+
+        /// <summary>
+        /// Loads the database from the file system.
+        /// </summary>
+        private void Load()
+        {
+            List<string> possibleFiles = Directory.GetFiles(Directory.GetCurrentDirectory()).Where(e => e.EndsWith(".data")).ToList();
+            foreach (var item in possibleFiles)
+            {
+                try
+                {
+                    string[] lines = File.ReadAllLines(item);
+                    ChunkMarker start = ChunkMarker.ConvertFromString(lines[0]);
+                    ChunkMarker end = ChunkMarker.ConvertFromString(lines[1]);
+                    DatabaseChunk chunk = new DatabaseChunk(start, end);
+                    for (int i = 2; i < lines.Length; ++i)
+                    {
+                        Document doc = new Document(lines[i]);
+                        chunk.TryAdd(new ObjectId(doc["id"].ValueAsString), doc);
+                    }
+
+                    _chunks.Add(chunk);
+                }
+                catch
+                {
+                    // The loading of the chunk failed, do nothing.
+                }
+            }
         }
 
         /// <summary>
@@ -515,6 +568,15 @@ namespace Database.Storage
         {
             while (_running)
             {
+                _lock.EnterReadLock();
+
+                foreach (var chunk in _chunks)
+                {
+                    chunk.Save();
+                }
+
+                _lock.ExitReadLock();
+
                 if (_checkForMerge)
                 {
                     AttemptMerge();

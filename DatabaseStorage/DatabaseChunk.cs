@@ -2,7 +2,9 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace Database.Storage
 {
@@ -15,6 +17,11 @@ namespace Database.Storage
         /// The start of the chunk.
         /// </summary>
         private readonly ChunkMarker _start;
+
+        /// <summary>
+        /// A value indicating whether the underlying data has changed at all.
+        /// </summary>
+        private bool _changed = false;
 
         /// <summary>
         /// The data contained by the chunk.
@@ -86,12 +93,21 @@ namespace Database.Storage
         }
 
         /// <summary>
+        /// Deletes the chunk from the file system.
+        /// </summary>
+        public void Delete()
+        {
+            File.Delete(GetFilename());
+        }
+
+        /// <summary>
         /// Merges this chunk with the one passed in.
         /// </summary>
         /// <param name="c">The chunk to merge.</param>
         /// <remarks>Make sure the chunks are sequential and that the chunk passed in comes after the current chunk.</remarks>
         public void Merge(DatabaseChunk c)
         {
+            _changed = true;
             if (!Equals(_end, c._start))
             {
                 throw new ArgumentException("The chunks are either not next to each other or you are trying to merge with the last chunk instead of the first.");
@@ -113,7 +129,30 @@ namespace Database.Storage
         /// <returns>A list of the matching documents in the chunk.</returns>
         public List<Document> Query(List<QueryItem> queryItems)
         {
+            _changed = true;
             return _data.Where(e => queryItems.All(query => query.Match(e.Value))).Select(e => e.Value).ToList();
+        }
+
+        /// <summary>
+        /// Saves the chunk to the file system.
+        /// </summary>
+        public void Save()
+        {
+            if (!_changed)
+            {
+                return;
+            }
+
+            _changed = false;
+            StringBuilder builder = new StringBuilder();
+            builder.AppendLine(_start.ToString());
+            builder.AppendLine(_end.ToString());
+            foreach (var item in _data)
+            {
+                builder.AppendLine(item.Value.ToJson());
+            }
+
+            File.WriteAllText(GetFilename(), builder.ToString());
         }
 
         /// <summary>
@@ -122,6 +161,7 @@ namespace Database.Storage
         /// <returns>The new chunk created from the split.</returns>
         public DatabaseChunk Split()
         {
+            _changed = true;
             var newData = new ConcurrentDictionary<ObjectId, Document>(_data.OrderBy(e => e.Key).Skip(_data.Count / 2).ToDictionary(e => e.Key, e => e.Value));
             _data = new ConcurrentDictionary<ObjectId, Document>(_data.OrderBy(e => e.Key).Take(_data.Count / 2));
 
@@ -139,6 +179,7 @@ namespace Database.Storage
         /// <returns>A value indicating whether the add was successful or if the key already existed.</returns>
         public bool TryAdd(ObjectId id, Document document)
         {
+            _changed = true;
             return _data.TryAdd(id, document);
         }
 
@@ -150,6 +191,7 @@ namespace Database.Storage
         /// <returns>True if the get was successful, otherwise false.</returns>
         public bool TryGet(ObjectId id, out Document value)
         {
+            _changed = true;
             return _data.TryGetValue(id, out value);
         }
 
@@ -161,6 +203,7 @@ namespace Database.Storage
         /// <returns>True if the remove was successful, otherwise false.</returns>
         public bool TryRemove(ObjectId id, out Document removed)
         {
+            _changed = true;
             return _data.TryRemove(id, out removed);
         }
 
@@ -173,7 +216,17 @@ namespace Database.Storage
         /// <returns>True if the update was successful, otherwise false.</returns>
         public bool TryUpdate(ObjectId id, Document newValue, Document oldValue)
         {
+            _changed = true;
             return _data.TryUpdate(id, newValue, oldValue);
+        }
+
+        /// <summary>
+        /// Gets the filename associated with the chunk.
+        /// </summary>
+        /// <returns>The filename associated with the chunk.</returns>
+        private string GetFilename()
+        {
+            return _start + "-" + _end + ".data";
         }
     }
 }

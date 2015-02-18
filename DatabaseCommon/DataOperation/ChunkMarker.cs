@@ -70,13 +70,37 @@ namespace Database.Common.DataOperation
         /// <returns>A value indicating whether value is between a and b.</returns>
         public static bool IsBetween(ChunkMarker a, ChunkMarker b, string value)
         {
+            return IsBetween(a, b, new ChunkMarker(value), false);
+        }
+
+        /// <summary>
+        /// Checks to see whether value is between a and b.
+        /// </summary>
+        /// <param name="a">The start of the range.</param>
+        /// <param name="b">The end of the range.</param>
+        /// <param name="value">The value to check.</param>
+        /// <param name="endValue">A value indicating whether to be exclusive when comparing to the start value.</param>
+        /// <returns>A value indicating whether value is between a and b.</returns>
+        public static bool IsBetween(ChunkMarker a, ChunkMarker b, ChunkMarker value, bool endValue)
+        {
             if (a._type == ChunkMarkerType.End || b._type == ChunkMarkerType.Start)
             {
                 return false;
             }
 
-            bool afterA = a._type == ChunkMarkerType.Start || string.Compare(a._value, value, StringComparison.Ordinal) <= 0;
-            bool beforeB = b._type == ChunkMarkerType.End || string.Compare(value, b._value, StringComparison.Ordinal) < 0;
+            bool afterA = a._type == ChunkMarkerType.Start || value._type == ChunkMarkerType.End;
+            if (endValue)
+            {
+                afterA = afterA || (value._type == ChunkMarkerType.Value && string.Compare(a._value, value._value, StringComparison.Ordinal) < 0);
+            }
+            else
+            {
+                afterA = afterA || (value._type == ChunkMarkerType.Value && string.Compare(a._value, value._value, StringComparison.Ordinal) <= 0);
+            }
+
+            bool beforeB = b._type == ChunkMarkerType.End ||
+                           value._type == ChunkMarkerType.Start ||
+                           (value._type == ChunkMarkerType.Value && string.Compare(value._value, b._value, StringComparison.Ordinal) < 0);
 
             return afterA && beforeB;
         }

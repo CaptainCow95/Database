@@ -484,7 +484,7 @@ namespace Database.Controller
         {
             lock (_balancingLockObject)
             {
-                _balancing = BalancingState.ChunkManagement;
+                _balancing = BalancingState.Balancing;
             }
 
             Primary = Self;
@@ -508,18 +508,11 @@ namespace Database.Controller
                 message.BlockUntilDone();
                 if (message.Success)
                 {
-                    ChunkListResponse response = (ChunkListResponse)message.Response.Data;
-                    foreach (var item in response.Chunks)
-                    {
-                        if (!_chunkList.Any(e => e.Start.Equals(item.Start)))
-                        {
-                            _chunkList.Add(item);
-                        }
-                    }
+                    MergeChunkList(def, ((ChunkListResponse)message.Response.Data).Chunks);
                 }
             }
 
-            TryCreateDatabase();
+            SendChunkList();
 
             lock (_balancingLockObject)
             {
@@ -697,14 +690,44 @@ namespace Database.Controller
 
                         if (response.Success)
                         {
+                            Message chunkRequest = new Message(nodeDef, new ChunkListRequest(), true);
+                            SendMessage(chunkRequest);
+                            chunkRequest.BlockUntilDone();
+                            if (chunkRequest.Success)
+                            {
+                                bool ready = false;
+                                while (!ready)
+                                {
+                                    lock (_balancingLockObject)
+                                    {
+                                        if (_balancing == BalancingState.None)
+                                        {
+                                            _balancing = BalancingState.Balancing;
+                                            ready = true;
+                                        }
+                                    }
+
+                                    if (!ready)
+                                    {
+                                        Thread.Sleep(1);
+                                    }
+                                }
+
+                                MergeChunkList(nodeDef, ((ChunkListResponse)chunkRequest.Response.Data).Chunks);
+
+                                lock (_balancingLockObject)
+                                {
+                                    _balancing = BalancingState.None;
+                                }
+                            }
+
                             lock (_storageNodes)
                             {
                                 _storageNodes.Add(new Tuple<NodeDefinition, int>(nodeDef, storageJoinSettings.Weight));
                             }
 
                             SendStorageNodeConnectionMessage();
-
-                            TryCreateDatabase();
+                            SendChunkList();
                         }
                     }
 
@@ -878,6 +901,44 @@ namespace Database.Controller
         }
 
         /// <summary>
+        /// Merges a list of newly defined chunks into the current chunk list.
+        /// </summary>
+        /// <param name="def">The node defining the chunks.</param>
+        /// <param name="chunks">The chunks being merged.</param>
+        private void MergeChunkList(NodeDefinition def, List<ChunkDefinition> chunks)
+        {
+            List<ChunkDefinition> chunksKept = new List<ChunkDefinition>();
+            lock (_chunkList)
+            {
+                foreach (var item in chunks)
+                {
+                    bool found = false;
+                    foreach (var chunk in _chunkList)
+                    {
+                        if (ChunkMarker.IsBetween(chunk.Start, chunk.End, item.Start, false) ||
+                            ChunkMarker.IsBetween(chunk.Start, chunk.End, item.End, true) ||
+                            ChunkMarker.IsBetween(item.Start, item.End, chunk.Start, false) ||
+                            ChunkMarker.IsBetween(item.Start, item.End, chunk.End, true))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (!found)
+                    {
+                        _chunkList.Add(item);
+                        chunksKept.Add(item);
+                    }
+                }
+            }
+
+            Message chunksKeptMessage = new Message(def, new ChunkListUpdate(chunksKept), true);
+            SendMessage(chunksKeptMessage);
+            chunksKeptMessage.BlockUntilDone();
+        }
+
+        /// <summary>
         /// Runs the thread that handles reconnecting to the other controllers.
         /// </summary>
         private void ReconnectionThreadRun()
@@ -994,8 +1055,11 @@ namespace Database.Controller
                 return;
             }
 
-            var nodes = GetConnectedNodes();
-            NodeList data = new NodeList(nodes.Where(e => e.Item2 == NodeType.Storage).Select(e => e.Item1.ConnectionName).ToList());
+            NodeList data;
+            lock (_storageNodes)
+            {
+                data = new NodeList(_storageNodes.Select(e => e.Item1.ConnectionName).ToList());
+            }
 
             foreach (var item in GetConnectedNodes())
             {

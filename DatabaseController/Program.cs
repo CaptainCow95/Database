@@ -31,7 +31,7 @@ namespace Database.Controller
                 {
                     if (json)
                     {
-                        var list = _node.GetConnectedNodes().OrderBy(e => e.Item1.ConnectionName);
+                        var list = _node.GetConnectedNodes().Concat(new[] { new Tuple<NodeDefinition, NodeType>(_node.Self, NodeType.Controller) }).OrderBy(e => e.Item1.ConnectionName);
                         Document nodes = new Document();
                         nodes["controllers"] = new DocumentEntry("controller", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Controller).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
                         nodes["storage"] = new DocumentEntry("storage", DocumentEntryType.Array, list.Where(e => e.Item2 == NodeType.Storage).Select(e => new DocumentEntry(string.Empty, DocumentEntryType.String, e.Item1.ConnectionName)).ToList());
@@ -58,7 +58,7 @@ namespace Database.Controller
                     }
                     else
                     {
-                        var list = _node.GetConnectedNodes().OrderBy(e => e.Item1.ConnectionName);
+                        var list = _node.GetConnectedNodes().Concat(new[] { new Tuple<NodeDefinition, NodeType>(_node.Self, NodeType.Controller) }).OrderBy(e => e.Item1.ConnectionName);
 
                         StringBuilder page = new StringBuilder();
                         page.Append("<html><body><b>Controller:</b><br /><ul>");
