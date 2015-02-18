@@ -8,7 +8,6 @@ Currently working:
 - Database will move chunks of itself around to maintain a balance on all storage nodes.
 
 TODO:
-- Fix sync issues with non-primary controller nodes
 - Add replica of the chunks, so if a storage node goes down, the data can be recovered
 - Some sort of operation log to assist in replication, probably similar in nature to MongoDB's oplog
 - indexes for query operations
@@ -47,7 +46,7 @@ In order for the database to be used, it requires that at least one controller n
 - <b>Port:</b> The port this node will run on.
 - <b>Location:</b> (Planned, not yet implemented) The location of the storage node, used by the controllers in combination with their RedundantNodesPerLocation setting.
 - <b>CanBecomePrimary:</b> (Planned, not yet implemented) A true or false value that indicates whether this storage node can become a primary storage node, or if it must always remain a replica for all of the chunks that it contains.
-- <b>Weight:</b> (Not yet implemented, trivial to do) The weight of the storage node compared to other nodes. This will determine how many chunks are stored on this node compared to others. For example, a node with a weight of 2 will contain roughly twice as many chunks as a node with a weight of 1 when the database is fully balanced.
+- <b>Weight:</b> The weight of the storage node compared to other nodes. This will determine how many chunks are stored on this node compared to others. For example, a node with a weight of 2 will contain roughly twice as many chunks as a node with a weight of 1 when the database is fully balanced.
 - <b>LogLevel:</b> Denotes the detail level of the logging. The options from least logging to most logging are as follows: Error, Warning, Info, Debug.
 
 #### Query Node Settings
