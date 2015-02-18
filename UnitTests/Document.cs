@@ -82,5 +82,25 @@ namespace UnitTests
             Assert.AreEqual(false, doc.CheckForSubkeys(), "The document had sub-keys.");
             Assert.AreEqual("{}", doc.ToJson(), "The json is incorrect.");
         }
+
+        /// <summary>
+        /// Tests that creating a document with extra JSON at the end results in an invalid document.
+        /// </summary>
+        [Test]
+        public void ExtraJson()
+        {
+            DataOp.Document doc = new DataOp.Document("{\"test\":5}}");
+            Assert.False(doc.Valid, "The document is valid when it shouldn't be.");
+        }
+
+        /// <summary>
+        /// Tests that creating a document with invalid JSON results in an invalid document.
+        /// </summary>
+        [Test]
+        public void InvalidJson()
+        {
+            DataOp.Document doc = new DataOp.Document("{ja}");
+            Assert.False(doc.Valid, "The document is valid when it shouldn't be.");
+        }
     }
 }
