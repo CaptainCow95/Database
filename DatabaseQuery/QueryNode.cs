@@ -182,8 +182,9 @@ namespace Database.Query
                 {
                     ProcessDataOperation(dataOperation, message);
                 }
-                catch
+                catch (Exception e)
                 {
+                    Logger.Log(e.Message + "\nStackTrace:" + e.StackTrace, LogLevel.Error);
                     SendMessage(new Message(message, new DataOperationResult(ErrorCodes.FailedMessage, "An exception occurred while processing the operation."), false));
                 }
             }
