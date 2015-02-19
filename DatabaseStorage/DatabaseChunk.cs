@@ -28,6 +28,9 @@ namespace Database.Storage
         /// </summary>
         private SortedDictionary<ObjectId, Document> _data = new SortedDictionary<ObjectId, Document>();
 
+        /// <summary>
+        /// The lock for the data.
+        /// </summary>
         private ReaderWriterLockSlim _dataLock = new ReaderWriterLockSlim();
 
         /// <summary>
