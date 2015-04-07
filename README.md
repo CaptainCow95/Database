@@ -1,6 +1,8 @@
 # Database [![Build Status](https://travis-ci.org/CaptainCow95/Database.svg)](https://travis-ci.org/CaptainCow95/Database)
 A distributed document-based database.
 
+**This is currently being rewritten under the DatabaseV2 repository to be simpler.**
+
 Currently working:
 - All node types
 - Controller node primary voting
